@@ -2,33 +2,35 @@
   <div class="container">
     <div class="card">
       <div class="card-title">YOUR CART</div>
+      <br />
       <div v-if="cartItems.length === 0" class="card-subtitle">
         No items in the cart.
       </div>
-      <div v-else class="header-table">
-        <!-- Custom Header Table -->
-        <div class="header">Product Name</div>
-        <div class="header">Price</div>
-        <div class="header">Quantity</div>
-        <div class="header">Actions</div>
-
-        <!-- Cart Items -->
+      <div v-else>
+        <div class="header-table">
+          <div class="header">Product Name</div>
+          <div class="header">Price</div>
+          <div class="header">Quantity</div>
+          <div class="header">Actions</div>
+        </div>
         <div v-for="item in cartItems" :key="item.product.id" class="data-row">
           <div class="item-col">{{ item.product.name }}</div>
           <div class="item-col">Rs. {{ item.product.price }}</div>
           <div class="item-col">{{ item.quantity }}</div>
           <div class="item-col actions-col">
-            <span class="icon" @click="removeFromCart(item.product.id)"
-              >🗑️</span
-            >
+            <span class="icon" @click="removeFromCart(item.product.id)">
+              <v-icon left>mdi-delete</v-icon>
+            </span>
           </div>
         </div>
       </div>
-
+      <br />
+      <br />
       <hr class="divider" />
       <div class="button-container">
-        <!-- Center Aligned Place Order Button -->
-        <button class="place-order-btn" @click="placeOrder">PLACE ORDER</button>
+        <button class="check-out-btn" @click="navigateToCheckout">
+          CHECKOUT
+        </button>
         <button class="close-btn" @click="navigateToHome">Close</button>
       </div>
     </div>
@@ -36,7 +38,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
+import { onMounted } from "vue";
 import { storeToRefs } from "pinia";
 import useProductStore from "@/stores/store";
 import { useRouter } from "vue-router";
@@ -65,11 +67,16 @@ const removeFromCart = async (productId) => {
 };
 
 const navigateToHome = () => {
-  router.push("/home"); // Assumes a route named 'home' exists
+  router.push("/home");
 };
 
-const placeOrder = () => {
-  // Navigate to Checkout.vue
+const navigateToCheckout = async () => {
+  if (cartItems.value.length === 0) {
+    alert(
+      "Your cart is empty. Add items to the cart before proceeding to checkout."
+    );
+    return;
+  }
   router.push("/checkout");
 };
 
@@ -79,27 +86,45 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.modal-title {
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 20px;
+  text-align: center;
+  color: #333;
+}
+
 .container {
-  max-width: 1200px;
-  margin: 0 auto;
+  margin-right: auto;
+  color: #333;
+  font-family: "Trebuchet MS", "Lucida Sans Unicode", "Lucida Grande",
+    "Lucida Sans", Arial, sans-serif;
+  font-size: 14px;
+  background-color: #fff;
+  margin-top: 20%;
   padding: 20px;
+  box-shadow: 0 4px 10px rgba(247, 247, 247, 0.1);
+  text-align: center;
 }
 
 .card {
   background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  width: 800px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
   padding: 20px;
+  margin-left: 20%;
+  font-size: 18px;
 }
 
 .card-title {
-  font-size: 1.5rem;
+  font-size: 24px;
   font-weight: bold;
-  margin-bottom: 10px;
+  margin-bottom: 20px;
+  color: #333;
 }
 
 .card-subtitle {
-  font-size: 1rem;
+  font-size: 18px;
   color: #666;
   text-align: center;
   margin-bottom: 20px;
@@ -110,10 +135,12 @@ onMounted(async () => {
   grid-template-columns: 3fr 1fr 1fr 0.5fr;
   gap: 10px;
   font-weight: bold;
-  background-color: #f4f4f4;
-  padding: 10px;
+  background: linear-gradient(135deg, #5d5d5d, #969494);
+  padding: 12px;
   border-radius: 8px;
   margin-bottom: 10px;
+  color: #fff;
+  text-transform: uppercase;
 }
 
 .header {
@@ -125,14 +152,11 @@ onMounted(async () => {
   grid-template-columns: 3fr 1fr 1fr 0.5fr;
   gap: 10px;
   align-items: center;
-  padding: 10px;
-  background-color: #fff;
-  border-radius: 8px;
+  padding: 12px;
+  background-color: #f8f8f8;
+  border-bottom: 1px solid #ccc;
   margin-bottom: 10px;
-}
-
-.data-row:nth-child(even) {
-  background-color: #f9f9f9;
+  font-size: 18px;
 }
 
 .button-container {
@@ -141,36 +165,34 @@ onMounted(async () => {
   margin-top: 20px;
 }
 
-.place-order-btn,
+.check-out-btn,
 .close-btn {
   padding: 10px 20px;
-  font-size: 1rem;
+  font-size: 16px;
   font-weight: bold;
   border: none;
   border-radius: 4px;
   cursor: pointer;
 }
 
-.place-order-btn {
-  background-color: #007bff;
+.check-out-btn {
+  background-color: #25c25f;
   color: #fff;
+  font-size: 18px;
 }
 
-.place-order-btn:hover {
-  background-color: #0056b3;
+.check-out-btn:hover {
+  background-color: #434649;
 }
 
 .close-btn {
-  background-color: #6c757d;
+  background-color: #007bff;
   color: #fff;
+  font-size: 18px;
 }
 
 .close-btn:hover {
-  background-color: #5a6268;
-}
-
-.divider {
-  margin: 20px 0;
+  background-color: #434649;
 }
 
 .item-col {
@@ -182,12 +204,12 @@ onMounted(async () => {
 
 .actions-col {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
 }
 
 .icon {
   cursor: pointer;
-  color: red;
+  color: #007bff;
   transition: color 0.3s;
 }
 

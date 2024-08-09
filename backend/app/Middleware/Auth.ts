@@ -1,13 +1,20 @@
-import type { HttpContextContract } from "@ioc:Adonis/Core/HttpContext";
+import { HttpContextContract } from "@ioc:Adonis/Core/HttpContext";
 
-export default class AuthMiddleware {
-  protected redirectTo = "/login";
-
+export default class Auth {
   public async handle(
-    { auth }: HttpContextContract,
+    { auth, response }: HttpContextContract,
     next: () => Promise<void>
   ) {
-    await auth.use("api").authenticate();
-    await next();
+    try {
+      await auth.use("api").authenticate();
+      await next();
+    } catch (error) {
+      console.error("Authentication error:", error);
+      return response.status(401).json({
+        success: false,
+        message: "Authentication failed",
+        error: error.message,
+      });
+    }
   }
 }

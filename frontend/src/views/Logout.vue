@@ -11,18 +11,16 @@ import { useRouter } from "vue-router";
 const router = useRouter();
 
 onMounted(() => {
-  // Check if user is logged in
   const token = sessionStorage.getItem("authToken");
   if (!token) {
     router.push({ name: "Welcome" });
     return;
   }
 
-  // Clear user data from session storage
   sessionStorage.removeItem("authToken");
   sessionStorage.removeItem("loggedInUser");
+  sessionStorage.removeItem("isAdmin");
 
-  // Redirect to the welcome page
   router.push({ name: "Welcome" });
 });
 </script>

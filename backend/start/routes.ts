@@ -23,12 +23,35 @@ import Route from "@ioc:Adonis/Core/Route";
 Route.group(() => {
   Route.post("/register", "AuthController.register"),
     Route.post("/login", "AuthController.login");
-  Route.delete("/logout", "AuthController.logout");
 }).prefix("users");
 
 Route.group(() => {
-  Route.get("/employees", "Controller.index");
-  Route.put("/employees/:id", "EmployeesController.update");
-  Route.post("/employees/add", "EmployeesController.store");
-  Route.delete("/employees/:id", "EmployeesController.delete");
+  Route.get("/products", "ProductsController.index");
+  Route.put("/products/:id", "ProductsController.update").where(
+    "id",
+    /^[0-9]+$/
+  );
+  Route.post("/products/add", "ProductsController.store");
+  Route.delete("/products/:id", "ProductsController.delete").where(
+    "id",
+    /^[0-9]+$/
+  );
 }).middleware("Auth");
+
+Route.group(() => {
+  Route.post("/add", "CartController.addToCart");
+  Route.delete("/remove", "CartController.removeFromCart");
+  Route.get("/", "CartController.getCartItems");
+  Route.delete("/clear", "CartController.clearCart");
+})
+  .prefix("/cart")
+  .middleware("Auth");
+
+Route.group(() => {
+  Route.post("/add", "OrdersController.store");
+  Route.get("/view", "OrdersController.index");
+  Route.get("/show/:id", "OrdersController.show").where("id", /^[0-9]+$/);
+  Route.get("/:username", "OrdersController.fetchAddress");
+})
+  .prefix("/orders")
+  .middleware("Auth");

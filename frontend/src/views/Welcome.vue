@@ -43,11 +43,9 @@ const exploreProducts = () => {
 
 <style scoped>
 .fill-height {
-  height: 2000px; /* Set to full viewport height */
-  width: 1000px; /* Set to full viewport width */
   background-image: url("https://media.designrush.com/articles/1628/conversions/_1523977145_341_ecommerce-preview.jpg");
-  background-size: cover; /* Cover the entire area */
-  background-position: center; /* Center the image */
+  background-size: contain;
+  background-position: center;
   background-repeat: no-repeat;
   display: flex;
   justify-content: center;
@@ -55,7 +53,10 @@ const exploreProducts = () => {
   font-size: larger;
   font-family: "Trebuchet MS", "Lucida Sans Unicode", "Lucida Grande",
     "Lucida Sans", Arial, sans-serif;
-  margin-left: 10%;
+  margin-left: 11%;
+  width: 1000px;
+  height: 800px;
+  margin-top: 5%;
 }
 
 .headline {

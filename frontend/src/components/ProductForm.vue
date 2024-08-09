@@ -1,15 +1,5 @@
 <template>
   <v-dialog v-model="dialog" width="650px" persistent>
-    <template v-slot:activator="{ props }">
-      <!-- Button to Open Modal -->
-      <div class="font">
-        <v-btn color="primary" dark v-bind="props" @click="openModal">
-          Open Product Form
-        </v-btn>
-      </div>
-    </template>
-
-    <!-- Modal Content -->
     <v-card class="full-height-card">
       <v-card-title>
         <span :class="headingClass">{{ dialogTitle }}</span>
@@ -20,11 +10,12 @@
           <v-container>
             <v-row>
               <v-col cols="4">
-                <label class="form-label">Name</label>
+                <label class="form-label" for="product-name">Name</label>
               </v-col>
               <v-col cols="8">
                 <v-text-field
                   v-model="formProduct.name"
+                  id="product-name"
                   placeholder="Enter product name"
                   required
                   hide-details
@@ -35,11 +26,12 @@
 
             <v-row>
               <v-col cols="4">
-                <label class="form-label">Price</label>
+                <label class="form-label" for="product-price">Price</label>
               </v-col>
               <v-col cols="8">
                 <v-text-field
                   v-model.number="formProduct.price"
+                  id="product-price"
                   placeholder="Enter price"
                   type="number"
                   min="0"
@@ -52,11 +44,14 @@
 
             <v-row>
               <v-col cols="4">
-                <label class="form-label">Description</label>
+                <label class="form-label" for="product-description"
+                  >Description</label
+                >
               </v-col>
               <v-col cols="8">
                 <v-textarea
                   v-model="formProduct.description"
+                  id="product-description"
                   placeholder="Enter description"
                   auto-grow
                   hide-details
@@ -67,11 +62,14 @@
 
             <v-row>
               <v-col cols="4">
-                <label class="form-label">Image URL</label>
+                <label class="form-label" for="product-image-url"
+                  >Image URL</label
+                >
               </v-col>
               <v-col cols="8">
                 <v-text-field
                   v-model="formProduct.imageurl"
+                  id="product-image-url"
                   placeholder="Enter image URL"
                   hide-details
                   class="custom-placeholder"
@@ -100,24 +98,30 @@
 import { ref, watch, computed } from "vue";
 import type { Product } from "../stores/store";
 
+// Props & Emit setup
 const props = defineProps<{
   product?: Product;
+  dialogVisible: boolean; // New prop to control dialog visibility
 }>();
 
 const emit = defineEmits<{
   (event: "form-submit", product: Product): void;
+  (event: "close-modal"): void; // Emit event to close the modal
 }>();
 
-const dialog = ref(false);
+// Reactive References
+const dialog = ref(props.dialogVisible);
 
+// Initialize formProduct with an empty product if props.product is undefined
 const formProduct = ref<Product>({
-  id: props.product?.id || 0,
-  name: props.product?.name || "",
-  price: props.product?.price || 0,
-  description: props.product?.description || "",
-  imageurl: props.product?.imageurl || "",
+  id: props.product?.id ?? 0,
+  name: props.product?.name ?? "",
+  price: props.product?.price ?? 0,
+  description: props.product?.description ?? "",
+  imageurl: props.product?.imageurl ?? "",
 });
 
+// Computed Properties
 const dialogTitle = computed(() => {
   return formProduct.value.id === 0 ? "Add Product" : "Edit Product";
 });
@@ -126,28 +130,44 @@ const headingClass = computed(() => {
   return formProduct.value.id === 0 ? "headline-add" : "headline-edit";
 });
 
+// Watcher to update form data if props change
 watch(
   () => props.product,
   (newProduct) => {
     if (newProduct) {
       formProduct.value = { ...newProduct };
+    } else {
+      formProduct.value = {
+        id: 0,
+        name: "",
+        price: 0,
+        description: "",
+        imageurl: "",
+      }; // Reset to default if no product is provided
     }
+  },
+  { immediate: true }
+);
+
+watch(
+  () => props.dialogVisible,
+  (newValue) => {
+    dialog.value = newValue; // Sync dialog visibility with prop
   }
 );
 
-function openModal() {
-  dialog.value = true;
-}
-
+// Methods
 function closeModal() {
   dialog.value = false;
+  emit("close-modal"); // Emit event to inform parent to close the dialog
 }
 
 function submitForm() {
   if (validateForm()) {
+    // Ensure formProduct is a valid Product
     const product: Product = { ...formProduct.value };
     emit("form-submit", product);
-    closeModal(); 
+    closeModal();
   }
 }
 

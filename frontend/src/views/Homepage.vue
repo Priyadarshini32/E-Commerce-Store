@@ -1,48 +1,73 @@
 <template>
   <v-container>
-    <h1 class="product-heading">Products</h1>
-    <div class="top-bar">
-      <v-btn
-        @click="navigateToAddProduct"
-        color="primary"
-        class="add-product-btn"
-      >
-        Add Product
-      </v-btn>
+    <div class="header-container">
+      <br />
+      <br />
+      <h1 class="product-heading">PRODUCTS</h1>
+      <br />
+      <div class="top-bar">
+        <v-text-field
+          v-model="searchQuery"
+          append-icon="mdi-magnify"
+          label="Search Products"
+          single-line
+          hide-details
+          class="search-bar"
+        ></v-text-field>
+        <v-btn @click="goToCart" color="green" class="view-cart-btn">
+          <v-icon left>mdi-cart</v-icon>
+          View Cart
+        </v-btn>
+        <v-btn
+          v-if="isAdmin"
+          @click="openAddProductModal"
+          color="primary"
+          class="add-product-btn"
+        >
+          Add Product
+        </v-btn>
+      </div>
     </div>
     <br />
-    <!-- Product Cards -->
-    <div class="product-row">
+    <div class="product-grid">
       <div
-        v-for="product in displayedProducts"
+        v-for="product in filteredProducts"
         :key="product.id"
-        class="product-card"
+        :class="['product-card', { 'admin-card': isAdmin }]"
       >
         <v-img :src="product.imageurl || defaultImage" class="product-image" />
+        <br />
         <div class="product-details">
           <h2 class="product-title">{{ product.name }}</h2>
           <p class="product-price">Rs. {{ product.price }}</p>
           <p class="product-description">{{ product.description }}</p>
           <br />
           <div class="product-actions">
-            <button @click="addToCart(product.id, 1)" class="btn btn-primary">
+            <v-btn @click="addToCart(product.id, 1)" color="primary">
+              <v-icon left>mdi-cart</v-icon>
               Add to Cart
-            </button>
-            <button
-              @click="navigateToEditProduct(product.id)"
-              class="btn btn-secondary"
+            </v-btn>
+            <v-btn
+              v-if="isAdmin"
+              @click="openEditProductModal(product)"
+              color="grey"
             >
+              <v-icon left>mdi-pencil</v-icon>
               Edit
-            </button>
-            <button @click="confirmDelete(product.id)" class="btn btn-danger">
+            </v-btn>
+            <v-btn
+              v-if="isAdmin"
+              @click="confirmDelete(product.id)"
+              color="error"
+            >
+              <v-icon left>mdi-delete</v-icon>
               Delete
-            </button>
+            </v-btn>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Confirmation Dialog -->
     <v-dialog v-model="dialogDelete" max-width="400px">
       <v-card>
         <v-card-title class="headline">Confirm Deletion</v-card-title>
@@ -51,18 +76,30 @@
         </v-card-text>
         <v-card-actions>
           <v-btn @click="deleteItemConfirm" color="red">Yes</v-btn>
-          <v-btn @click="closeDelete">No</v-btn>
+          <v-btn @click="closeDelete" color="grey">No</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
-    <br />
-    <br />
-    <!-- View Cart Button -->
-    <v-btn @click="goToCart" color="blue" class="view-cart-btn">
-      View Cart
-    </v-btn>
 
-    <!-- Pagination Controls -->
+    <v-dialog v-model="dialogForm" max-width="600px">
+      <v-card>
+        <!-- Remove or comment out the v-card-title -->
+        <!-- <v-card-title>
+        {{ formTitle }}
+      </v-card-title> -->
+        <v-card-text>
+          <ProductForm
+            :product="selectedProduct || undefined"
+            :dialogVisible="dialogForm"
+            @form-submit="handleFormSubmit"
+            @close-modal="closeForm"
+          />
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+
+    <br />
+
     <div class="pagination-controls">
       <v-btn
         v-if="currentPage > 1"
@@ -90,17 +127,40 @@ import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import useProductStore from "@/stores/store";
 import { storeToRefs } from "pinia";
+import ProductForm from "@/components/ProductForm.vue";
 import type { Product } from "@/stores/store";
 
 const router = useRouter();
-
 const productStore = useProductStore();
 const { products } = storeToRefs(productStore);
 
 const loading = ref<boolean>(true);
-const itemsPerPage = ref<number>(3);
+const itemsPerPage = ref<number>(9); // Display 6 products per page
 const currentPage = ref<number>(1);
-const defaultImage = "path/to/default/image.png";
+const defaultImage = "/default.jpg"; // Use relative path for default image
+const searchQuery = ref<string>("");
+
+// Check if the user is admin
+const isAdmin = computed<boolean>(() => {
+  return sessionStorage.getItem("isAdmin") === "true";
+});
+
+// Modal states
+const dialogForm = ref<boolean>(false);
+const dialogDelete = ref<boolean>(false);
+const selectedProduct = ref<Product | null>(null);
+// const formTitle = computed(() =>
+//   selectedProduct.value ? "Update Product Details" : "Add New Product"
+// );
+
+const filteredProducts = computed<Product[]>(() => {
+  if (searchQuery.value) {
+    return products.value.filter((product) =>
+      product.name.toLowerCase().includes(searchQuery.value.toLowerCase())
+    );
+  }
+  return displayedProducts.value;
+});
 
 const displayedProducts = computed<Product[]>(() => {
   const start = (currentPage.value - 1) * itemsPerPage.value;
@@ -130,35 +190,34 @@ onMounted(async () => {
   await fetchProductData();
 });
 
-const navigateToEditProduct = (id: number) => {
-  router.push({ name: "EditProduct", params: { id: id.toString() } });
+const openEditProductModal = (product: Product) => {
+  selectedProduct.value = product;
+  dialogForm.value = true;
 };
 
-const navigateToAddProduct = () => {
-  router.push({ name: "AddProduct" });
+const openAddProductModal = () => {
+  selectedProduct.value = null;
+  dialogForm.value = true;
 };
 
 const goToCart = () => {
   router.push("/cart");
 };
 
-// Cart management
+// Cart
 const addToCart = async (productId: number, quantity: number) => {
   try {
     await productStore.addToCart(productId, quantity);
-    alert("Product added to cart successfully.");
+    alert("Product added to the cart!");
   } catch (error) {
     console.error("Error adding product to cart:", error);
     alert("Failed to add product to cart. Please try again.");
   }
 };
 
-// delete
-const dialogDelete = ref<boolean>(false);
-const itemToDelete = ref<number | null>(null);
-
+// Delete
 const confirmDelete = (id: number) => {
-  itemToDelete.value = id;
+  selectedProduct.value = { id } as Product;
   dialogDelete.value = true;
 };
 
@@ -167,9 +226,9 @@ const closeDelete = () => {
 };
 
 const deleteItemConfirm = async () => {
-  if (itemToDelete.value !== null) {
+  if (selectedProduct.value && selectedProduct.value.id !== undefined) {
     try {
-      await productStore.deleteProduct(itemToDelete.value);
+      await productStore.deleteProduct(selectedProduct.value.id);
       await fetchProductData();
       closeDelete();
     } catch (err) {
@@ -191,25 +250,80 @@ const goToPreviousPage = () => {
     currentPage.value -= 1;
   }
 };
+
+// Handle form submission
+const handleFormSubmit = async (product: Product) => {
+  if (selectedProduct.value && selectedProduct.value.id !== undefined) {
+    // Update product
+    try {
+      const response = await productStore.updateProduct(
+        selectedProduct.value.id,
+        product
+      );
+      if (response.status === 1) {
+        alert("Product updated successfully");
+      } else {
+        console.log("hi");
+
+        const err = response.message;
+        console.log(err);
+
+        alert(err.response.data.error[0].message);
+      }
+    } catch (error) {
+      console.error("Error updating product:", error);
+      alert("Failed to update product. Please try again.");
+    }
+  } else {
+    // Add new product
+    try {
+      const response = await productStore.addProduct(product);
+      if (response.status === 1) {
+        alert("Product created successfully");
+      } else {
+        console.log("hi");
+
+        const err = response.message;
+        console.log(err);
+
+        alert(err.response.data.error[0].message);
+      }
+    } catch (error) {
+      console.error("Error adding product:", error);
+      alert("Failed to add product. Please try again.");
+    }
+  }
+  dialogForm.value = false;
+  await fetchProductData();
+};
+
+// Close form and redirect to home
+const closeForm = () => {
+  dialogForm.value = false;
+  router.push("/home");
+};
 </script>
 
 <style scoped>
 .product-heading {
-  text-transform: uppercase;
   font-weight: bolder;
   font-family: "Trebuchet MS", "Lucida Sans Unicode", "Lucida Grande",
     "Lucida Sans", Arial, sans-serif;
+  margin-top: 2%;
 }
 
-.product-row {
-  display: flex;
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* 3 columns in a row */
   gap: 30px;
   justify-content: center;
-  margin-left: 10%;
+  margin-top: 20px;
+  width: 1200px;
+  height: auto;
 }
 
 .product-card {
-  width: 400px;
+  width: 100%;
   height: auto;
   display: flex;
   flex-direction: column;
@@ -218,6 +332,17 @@ const goToPreviousPage = () => {
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   padding: 15px;
+  font-family: "Trebuchet MS", "Lucida Sans Unicode", "Lucida Grande",
+    "Lucida Sans", Arial, sans-serif;
+}
+
+.product-card.admin-card {
+  background-color: #f9f9f9; /* Different background for admin */
+}
+
+.search-bar {
+  max-width: 300px;
+  margin-right: 20px;
 }
 
 .product-image {
@@ -246,29 +371,28 @@ const goToPreviousPage = () => {
 
 .product-description {
   font-size: 0.9rem;
-  color: #555;
+  color: #383838;
 }
 
 .product-actions {
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  margin: 1px;
-  height: 45px;
-  width: 300px;
+  margin-top: 10px;
 }
 
 .btn {
-  padding: 10px 15px;
+  flex: 1;
+  padding: 5px 8px;
   border: none;
   border-radius: 4px;
   color: #fff;
   cursor: pointer;
-  margin: 1px;
 }
 
 .btn-primary {
-  background-color: #007bff;
+  background-color: #42b983;
+  display: flex;
 }
 
 .btn-secondary {
@@ -281,21 +405,20 @@ const goToPreviousPage = () => {
 
 .top-bar {
   display: flex;
-  justify-content: flex-end;
-  margin-bottom: 16px;
+  align-items: center;
 }
 
 .add-product-btn {
-  margin-right: 16px;
+  margin-left: 16px;
 }
 
 .pagination-controls {
   display: flex;
   justify-content: center;
-  margin-left: 60%;
+  margin-top: 20px;
 }
 
 .pagination-btn {
-  margin-left: 60%;
+  margin: 0 5px;
 }
 </style>

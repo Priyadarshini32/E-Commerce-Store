@@ -43,7 +43,8 @@
             />
           </div>
         </div>
-        <button type="submit">Submit</button>
+
+        <button type="submit"><v-btn> Submit </v-btn></button>
       </form>
       <p class="login-link">
         Already registered? <router-link to="/login">Login here</router-link>
@@ -101,6 +102,7 @@ const handleRegister = async () => {
     "Lucida Sans", Arial, sans-serif;
   font-weight: bold;
   margin-left: 7%;
+  margin-top: 5%;
 }
 
 .register-form {
@@ -181,8 +183,6 @@ const handleRegister = async () => {
 }
 
 .register-form button {
-  width: 100%;
-  padding: 12px;
   background-color: #42b983;
   color: #fff;
   border: none;
@@ -190,7 +190,6 @@ const handleRegister = async () => {
   cursor: pointer;
   font-size: 16px;
   transition: background-color 0.3s ease;
-  margin-top: 20px;
 }
 
 .register-form button:hover {

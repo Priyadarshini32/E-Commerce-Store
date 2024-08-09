@@ -5,8 +5,10 @@ import Register from "@/views/Register.vue";
 import Login from "@/views/Login.vue";
 import Logout from "@/views/Logout.vue";
 import Cart from "@/views/Cart.vue";
-import AddEdit from "@/views/AddEdit.vue";
+// import AddEdit from "@/views/AddEdit.vue";
 import Checkout from "@/views/Checkout.vue";
+import Order from "@/views/Order.vue";
+import OrdersPage from "@/views/OrdersPage.vue";
 
 // Define your routes
 const routes = [
@@ -39,19 +41,19 @@ const routes = [
     component: Homepage,
     meta: { requiresAuth: true },
   },
-  {
-    path: "/add",
-    name: "AddProduct",
-    component: AddEdit,
-    props: { mode: "add" }, // Pass mode as a prop to differentiate between add and edit
-  },
-  {
-    path: "/edit/:id",
-    name: "EditProduct",
-    component: AddEdit,
-    props: true,
-    meta: { requiresAuth: true },
-  },
+  // {
+  //   path: "/add",
+  //   name: "AddProduct",
+  //   component: AddEdit,
+  //   props: { mode: "add" }, // Pass mode as a prop to differentiate between add and edit
+  // },
+  // {
+  //   path: "/edit/:id",
+  //   name: "EditProduct",
+  //   component: AddEdit,
+  //   props: true,
+  //   meta: { requiresAuth: true },
+  // }
   {
     path: "/cart",
     name: "Cart",
@@ -64,20 +66,31 @@ const routes = [
     component: Checkout,
     meta: { requiresAuth: true },
   },
+  {
+    path: "/order/:id",
+    name: "Order",
+    component: Order,
+    props: true,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/orders",
+    name: "OrdersPage",
+    component: OrdersPage,
+
+    meta: { requiresAuth: true },
+  },
 ];
 
-// Create the router instance
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes,
 });
 
-// Route guard to check authentication
 router.beforeEach((to, from, next) => {
   const isAuthenticated = !!sessionStorage.getItem("authToken");
 
   if (to.meta.requiresAuth && !isAuthenticated) {
-    // Redirect to login page with a message if not authenticated
     next({
       name: "Login",
       query: { message: "Please log in to access this page." },

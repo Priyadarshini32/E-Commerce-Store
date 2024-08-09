@@ -1,0 +1,2569 @@
+store.ts
+
+import axios from "axios";
+import { defineStore } from "pinia";
+import { ref } from "vue";
+
+export type Product = {
+  id: number;
+  name: string;
+  description: string | null;
+  price: number;
+  imageurl: string | null;
+};
+
+export type CartItem = {
+  product: Product;
+  quantity: number;
+};
+
+export type Order = {
+  id: number;
+  customername: string;
+  streetaddress: string;
+  city: string;
+  state: string;
+  zip: string;
+  items: CartItem[];
+  totalprice: number;
+  orderDate: string;
+};
+
+const url = import.meta.env.VITE_APP_URL;
+const cartUrl = `${url}/cart`;
+const orderUrl = `${url}/orders`;
+const errorMessage = ref("");
+const useProductStore = defineStore("productStore", () => {
+  const orders = ref<Order[]>([]);
+  const products = ref<Product[]>([]);
+  const cartItems = ref<CartItem[]>([]);
+  const isLoading = ref<boolean>(false);
+  const error = ref<string | null>(null);
+  const token = ref<string | null>(sessionStorage.getItem("authToken"));
+  const userId = ref<number | null>(
+    sessionStorage.getItem("userId")
+      ? Number(sessionStorage.getItem("userId"))
+      : null
+  ); // Assuming the userId is stored as a string
+
+  const setAuthHeader = () => ({
+    headers: {
+      Authorization: `Bearer ${token.value}`,
+    },
+  });
+
+  const fetchProducts = async () => {
+    isLoading.value = true;
+    error.value = null;
+
+    try {
+      if (!token.value) {
+        error.value = "Authorization token is missing";
+        return;
+      }
+      const response = await axios.get(`${url}/products`, setAuthHeader());
+      products.value = response.data;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        error.value = err.response?.data?.message || "Failed to fetch products";
+      } else {
+        error.value = "An unknown error occurred";
+      }
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  const addProduct = async (inputData: Omit<Product, "id">) => {
+    try {
+      if (!token.value) {
+        error.value = "Authorization token is missing";
+        return { status: 0, message: "Authorization token is missing" };
+      }
+      const response = await axios.post(
+        `${url}/products/add`,
+        inputData,
+        setAuthHeader()
+      );
+      console.log(response.data);
+      await fetchProducts();
+      return { status: 1, message: {} };
+    } catch (errors) {
+      console.log("Error in addProduct:", errors);
+      return {
+        status: 0,
+        message: errors || "An unexpected error occurred",
+      };
+    }
+  };
+
+  const updateProduct = async (id: number, inputData: Product) => {
+    try {
+      if (!token.value) {
+        error.value = "Authorization token is missing";
+        return;
+      }
+      const response = await axios.put(
+        `${url}/products/${id}`,
+        inputData,
+        setAuthHeader()
+      );
+      console.log(response.data);
+
+      await fetchProducts();
+      return { status: 1, message: {} };
+    } catch (errors) {
+      console.log("Error in UpdateProduct:", errors);
+      return {
+        status: 0,
+        message: errors || "An unexpected error occurred",
+      };
+    }
+  };
+
+  const deleteProduct = async (id: number) => {
+    if (!token.value) {
+      error.value = "Authorization token is missing";
+      return;
+    }
+
+    try {
+      await axios.delete(`${url}/products/${id}`, setAuthHeader());
+      await fetchProducts();
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        error.value = err.response?.data?.message || "Failed to delete product";
+      } else {
+        error.value = "An unknown error occurred";
+      }
+    }
+  };
+
+  const addToCart = async (productId: number, quantity: number) => {
+    try {
+      if (!token.value) {
+        error.value = "Authorization token is missing";
+        return;
+      }
+      await axios.post(
+        `${cartUrl}/add`,
+        { productId, quantity },
+        setAuthHeader()
+      );
+      await fetchCartItems();
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        error.value =
+          err.response?.data?.message || "Failed to add product to cart";
+      } else {
+        error.value = "An unknown error occurred";
+      }
+    }
+  };
+
+  const removeFromCart = async (productId: number) => {
+    try {
+      if (!token.value) {
+        error.value = "Authorization token is missing";
+        return;
+      }
+      await axios.delete(`${cartUrl}/remove`, {
+        headers: setAuthHeader().headers,
+        params: { productId },
+      });
+      await fetchCartItems();
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        error.value =
+          err.response?.data?.message || "Failed to remove product from cart";
+      } else {
+        error.value = "An unknown error occurred";
+      }
+    }
+  };
+
+  const fetchCartItems = async () => {
+    isLoading.value = true;
+    error.value = null;
+
+    try {
+      if (!token.value) {
+        error.value = "Authorization token is missing";
+        return;
+      }
+      const response = await axios.get(cartUrl, setAuthHeader());
+      cartItems.value = response.data;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        error.value =
+          err.response?.data?.message || "Failed to fetch cart items";
+      } else {
+        error.value = "An unknown error occurred";
+      }
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  const clearCart = async () => {
+    try {
+      if (!token.value) {
+        error.value = "Authorization token is missing";
+        return;
+      }
+      await axios.delete(`${cartUrl}/clear`, setAuthHeader());
+      cartItems.value = [];
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        error.value =
+          err.response?.data?.message || "Failed to clear cart items";
+      } else {
+        error.value = "An unknown error occurred";
+      }
+    }
+  };
+
+  const fetchUserOrders = async () => {
+    isLoading.value = true;
+    error.value = null;
+
+    try {
+      if (!token.value) {
+        error.value = "Authorization token is missing";
+        return;
+      }
+      const response = await axios.get(`${orderUrl}/view`, setAuthHeader());
+      console.log(response.data.data);
+      return response.data.data;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        error.value = err.response?.data?.message || "Failed to fetch orders";
+      } else {
+        error.value = "An unknown error occurred";
+      }
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  const storeOrder = async (inputData: Omit<Order, "id" | "orderDate">) => {
+    if (!token.value) {
+      error.value = "Authorization token is missing";
+      return;
+    }
+
+    // Extract fields from inputData
+    const { customername, streetaddress, city, state, zip, items, totalprice } =
+      inputData;
+
+    // Prepare orderData
+    const orderData = {
+      customername: customername,
+      items: JSON.stringify(items),
+      totalprice: totalprice,
+      streetaddress: streetaddress,
+      city: city,
+      state: state,
+      zipcode: zip,
+    };
+
+    try {
+      const response = await axios.post(
+        `${orderUrl}/add`,
+        orderData,
+        setAuthHeader()
+      );
+      console.log(response.data);
+      fetchUserOrders();
+      return { status: 1, orderId: response.data.data.id, message: {} };
+    } catch (errors) {
+      console.log(errors);
+      return {
+        status: 0,
+        orderId: 0,
+        message: errors,
+      };
+    }
+  };
+
+  const fetchOrderDetails = async (id: number) => {
+    isLoading.value = true;
+    error.value = null;
+
+    try {
+      if (!token.value) {
+        error.value = "Authorization token is missing";
+        return;
+      }
+      const response = await axios.get(
+        `${orderUrl}/show/${id}`,
+
+        setAuthHeader()
+      );
+      console.log(response.data.data);
+
+      return response.data.data; // Return the order details from the response
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        error.value =
+          err.response?.data?.message || "Failed to fetch order details";
+      } else {
+        error.value = "An unknown error occurred";
+      }
+    } finally {
+      isLoading.value = false;
+    }
+  };
+  return {
+    products,
+    cartItems,
+    isLoading,
+    error,
+    fetchProducts,
+    addProduct,
+    updateProduct,
+    deleteProduct,
+    addToCart,
+    removeFromCart,
+    fetchCartItems,
+    clearCart,
+    orders,
+    fetchUserOrders,
+    fetchOrderDetails,
+    storeOrder,
+  };
+});
+
+export default useProductStore;
+
+
+
+checkout.vue 
+
+
+<template>
+  <div class="container">
+    <div class="card">
+      <h1 class="card-title">CHECKOUT</h1>
+      <br />
+
+      <div class="content-wrapper">
+        <!-- Order Details Section -->
+        <div class="order-details">
+          <h2>Order Details</h2>
+          <div class="card-text">
+            <table class="product-table">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Quantity</th>
+                  <th>Price</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in cartItems" :key="item.product.id">
+                  <td>{{ item.product.name }}</td>
+                  <td>{{ item.quantity }}</td>
+                  <td>Rs. {{ item.product.price }}</td>
+                  <td>Rs. {{ item.product.price * item.quantity }}</td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="3" class="total-label">TOTAL</td>
+                  <td class="total-amount">Rs. {{ totalPrice }}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        <!-- Divider -->
+        <div class="divider"></div>
+
+        <div class="customer-details">
+          <h2>Customer Details</h2>
+          <div class="card-subtitle">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="name">User Name</label>
+                <input
+                  id="name"
+                  type="text"
+                  v-model="username"
+                  class="form-control"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label for="name">Full Name</label>
+                <input
+                  id="name"
+                  type="text"
+                  v-model="customername"
+                  class="form-control"
+                  required
+                />
+              </div>
+            </div>
+            <br />
+            <div class="address-section">
+              <h3>Delivery Address</h3>
+              <div class="form-row">
+                <div class="form-group">
+                  <label
+                    for="
+streetaddress
+"
+                    >Street</label
+                  >
+                  <input
+                    id="streetaddress"
+                    type="text"
+                    v-model="streetaddress"
+                    class="form-control"
+                    required
+                  />
+                </div>
+                <div class="form-group">
+                  <label for="city">City</label>
+                  <input
+                    id="city"
+                    type="text"
+                    v-model="city"
+                    class="form-control"
+                    required
+                  />
+                </div>
+              </div>
+              <br />
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="state">State</label>
+                  <input
+                    id="state"
+                    type="text"
+                    v-model="state"
+                    class="form-control"
+                    required
+                  />
+                </div>
+                <div class="form-group">
+                  <label for="zipCode">Zip Code</label>
+                  <input
+                    id="zipCode"
+                    type="text"
+                    v-model="zip"
+                    class="form-control"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <br />
+      <br />
+      <div class="card-actions">
+        <button @click="placeOrder" class="btn btn-primary">Place Order</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script lang="ts" setup>
+import { ref, computed, onMounted } from "vue";
+import { useRouter } from "vue-router";
+import useProductStore from "@/stores/store";
+
+const store = useProductStore();
+const router = useRouter();
+
+const username = ref("");
+const customername = ref("");
+
+const streetaddress = ref("");
+const city = ref("");
+const state = ref("");
+const zip = ref("");
+const cartItems = computed(() => store.cartItems);
+const totalPrice = computed(() =>
+  cartItems.value.reduce(
+    (total, item) => total + item.product.price * item.quantity,
+    0
+  )
+);
+
+// Automatically set customer name to the logged-in username
+onMounted(() => {
+  username.value = sessionStorage.getItem("loggedInUser") || "";
+});
+
+const placeOrder = async () => {
+  if (
+    !username.value ||
+    !customername.value ||
+    !streetaddress.value ||
+    !city.value ||
+    !state.value ||
+    !zip.value
+  ) {
+    alert("Please fill in all required fields.");
+    return;
+  }
+
+  if (cartItems.value.length === 0) {
+    alert("Your cart is empty. Add items before placing an order.");
+    return;
+  }
+
+  const orderDetails = {
+    username: username.value,
+    customername: customername.value,
+    streetaddress: streetaddress.value,
+    city: city.value,
+    state: state.value,
+    zip: zip.value,
+    items: cartItems.value,
+    totalAmount: totalPrice.value,
+  };
+
+  const response = await store.storeOrder({
+    customername: orderDetails.customername,
+    streetaddress: orderDetails.streetaddress,
+    city: orderDetails.city,
+    state: orderDetails.state,
+    zip: orderDetails.zip,
+    items: orderDetails.items,
+    totalprice: orderDetails.totalAmount,
+  });
+
+  if (response.status === 1) {
+    console.log(response);
+    await store.clearCart();
+    router.push(`/order/${response.orderId}`);
+  } else {
+    const err = response?.message;
+    alert(err.response.data.errors[0].message);
+  }
+};
+</script>
+
+<style scoped>
+/* Container styling */
+.container {
+  padding: 20px;
+  font-family: "Trebuchet MS", "Lucida Sans Unicode", "Lucida Grande",
+    "Lucida Sans", Arial, sans-serif;
+  margin-top: 10%;
+}
+
+.card {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  margin-bottom: 10px;
+  height: 700px;
+  width: 1100px;
+}
+
+.content-wrapper {
+  display: flex;
+  justify-content: space-between;
+  gap: 40px;
+}
+
+.order-details,
+.customer-details {
+  flex: 1;
+}
+
+.order-details h2,
+.customer-details h2 {
+  font-size: 25px;
+  font-weight: 100;
+  margin-bottom: 15px;
+}
+
+.address-section {
+  margin-top: 20px;
+}
+
+.address-section h3 {
+  font-size: 20px;
+  font-weight: bold;
+  margin-bottom: 15px;
+}
+
+.divider {
+  border-top: 2px solid #ddd;
+  margin: 20px 0;
+}
+
+.form-row {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.form-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  font-size: 19px;
+}
+
+.form-group label {
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.form-control {
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 18px;
+}
+
+.product-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.product-table th,
+.product-table td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+
+.product-table th {
+  background-color: #f4f4f4;
+  font-weight: bold;
+}
+
+.product-table tfoot tr {
+  font-weight: bold;
+}
+
+.total-label {
+  text-align: right;
+}
+
+.total-amount {
+  color: #007bff;
+}
+
+.card-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn {
+  padding: 10px 20px;
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 18px;
+  justify-content: center;
+}
+
+.btn-secondary {
+  background-color: #6c757d;
+}
+
+.btn:hover {
+  background-color: #0056b3;
+}
+</style>
+
+
+
+homepage.vue 
+
+
+<template>
+  <v-container>
+    <div class="header-container">
+      <br />
+      <br />
+      <h1 class="product-heading">PRODUCTS</h1>
+      <br />
+      <div class="top-bar">
+        <v-text-field
+          v-model="searchQuery"
+          append-icon="mdi-magnify"
+          label="Search Products"
+          single-line
+          hide-details
+          class="search-bar"
+        ></v-text-field>
+        <v-btn @click="goToCart" color="green" class="view-cart-btn">
+          <v-icon left>mdi-cart</v-icon>
+          View Cart
+        </v-btn>
+        <v-btn
+          v-if="isAdmin"
+          @click="openAddProductModal"
+          color="primary"
+          class="add-product-btn"
+        >
+          Add Product
+        </v-btn>
+      </div>
+    </div>
+    <br />
+    <div class="product-grid">
+      <div
+        v-for="product in filteredProducts"
+        :key="product.id"
+        :class="['product-card', { 'admin-card': isAdmin }]"
+      >
+        <v-img :src="product.imageurl || defaultImage" class="product-image" />
+        <br />
+        <div class="product-details">
+          <h2 class="product-title">{{ product.name }}</h2>
+          <p class="product-price">Rs. {{ product.price }}</p>
+          <p class="product-description">{{ product.description }}</p>
+          <br />
+          <div class="product-actions">
+            <v-btn @click="addToCart(product.id, 1)" color="primary">
+              <v-icon left>mdi-cart</v-icon>
+              Add to Cart
+            </v-btn>
+            <v-btn
+              v-if="isAdmin"
+              @click="openEditProductModal(product)"
+              color="grey"
+            >
+              <v-icon left>mdi-pencil</v-icon>
+              Edit
+            </v-btn>
+            <v-btn
+              v-if="isAdmin"
+              @click="confirmDelete(product.id)"
+              color="error"
+            >
+              <v-icon left>mdi-delete</v-icon>
+              Delete
+            </v-btn>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <v-dialog v-model="dialogDelete" max-width="400px">
+      <v-card>
+        <v-card-title class="headline">Confirm Deletion</v-card-title>
+        <v-card-text>
+          Are you sure you want to delete this product?
+        </v-card-text>
+        <v-card-actions>
+          <v-btn @click="deleteItemConfirm" color="red">Yes</v-btn>
+          <v-btn @click="closeDelete" color="grey">No</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="dialogForm" max-width="600px">
+      <v-card>
+        <!-- Remove or comment out the v-card-title -->
+        <!-- <v-card-title>
+        {{ formTitle }}
+      </v-card-title> -->
+        <v-card-text>
+          <ProductForm
+            :product="selectedProduct || undefined"
+            :dialogVisible="dialogForm"
+            @form-submit="handleFormSubmit"
+            @close-modal="closeForm"
+          />
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+
+    <br />
+
+    <div class="pagination-controls">
+      <v-btn
+        v-if="currentPage > 1"
+        @click="goToPreviousPage"
+        icon
+        class="pagination-btn"
+      >
+        <v-icon>mdi-arrow-left</v-icon>
+      </v-btn>
+
+      <v-btn
+        v-if="hasMoreProducts"
+        @click="loadNextPage"
+        icon
+        class="pagination-btn"
+      >
+        <v-icon>mdi-arrow-right</v-icon>
+      </v-btn>
+    </div>
+  </v-container>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted } from "vue";
+import { useRouter } from "vue-router";
+import useProductStore from "@/stores/store";
+import { storeToRefs } from "pinia";
+import ProductForm from "@/components/ProductForm.vue";
+import type { Product } from "@/stores/store";
+
+const router = useRouter();
+const productStore = useProductStore();
+const { products } = storeToRefs(productStore);
+
+const loading = ref<boolean>(true);
+const itemsPerPage = ref<number>(9); // Display 6 products per page
+const currentPage = ref<number>(1);
+const defaultImage = "/default.jpg"; // Use relative path for default image
+const searchQuery = ref<string>("");
+
+// Check if the user is admin
+const isAdmin = computed<boolean>(() => {
+  return sessionStorage.getItem("isAdmin") === "true";
+});
+
+// Modal states
+const dialogForm = ref<boolean>(false);
+const dialogDelete = ref<boolean>(false);
+const selectedProduct = ref<Product | null>(null);
+const formTitle = computed(() =>
+  selectedProduct.value ? "Update Product Details" : "Add New Product"
+);
+
+const filteredProducts = computed<Product[]>(() => {
+  if (searchQuery.value) {
+    return products.value.filter((product) =>
+      product.name.toLowerCase().includes(searchQuery.value.toLowerCase())
+    );
+  }
+  return displayedProducts.value;
+});
+
+const displayedProducts = computed<Product[]>(() => {
+  const start = (currentPage.value - 1) * itemsPerPage.value;
+  const end = start + itemsPerPage.value;
+  return products.value.slice(start, end);
+});
+
+const hasMoreProducts = computed<boolean>(() => {
+  const totalItems = products.value.length;
+  return currentPage.value * itemsPerPage.value < totalItems;
+});
+
+// Fetch data
+const fetchProductData = async () => {
+  loading.value = true;
+  try {
+    await productStore.fetchProducts();
+  } catch (error) {
+    console.error("Error fetching products:", error);
+    alert("Failed to fetch product data. Please try again.");
+  } finally {
+    loading.value = false;
+  }
+};
+
+onMounted(async () => {
+  await fetchProductData();
+});
+
+const openEditProductModal = (product: Product) => {
+  selectedProduct.value = product;
+  dialogForm.value = true;
+};
+
+const openAddProductModal = () => {
+  selectedProduct.value = null;
+  dialogForm.value = true;
+};
+
+const goToCart = () => {
+  router.push("/cart");
+};
+
+// Cart
+const addToCart = async (productId: number, quantity: number) => {
+  try {
+    await productStore.addToCart(productId, quantity);
+    alert("Product added to the cart!");
+  } catch (error) {
+    console.error("Error adding product to cart:", error);
+    alert("Failed to add product to cart. Please try again.");
+  }
+};
+
+// Delete
+const confirmDelete = (id: number) => {
+  selectedProduct.value = { id } as Product;
+  dialogDelete.value = true;
+};
+
+const closeDelete = () => {
+  dialogDelete.value = false;
+};
+
+const deleteItemConfirm = async () => {
+  if (selectedProduct.value && selectedProduct.value.id !== undefined) {
+    try {
+      await productStore.deleteProduct(selectedProduct.value.id);
+      await fetchProductData();
+      closeDelete();
+    } catch (err) {
+      console.error("Error deleting product:", err);
+      alert("Failed to delete product. Please try again.");
+    }
+  }
+};
+
+// Pagination controls
+const loadNextPage = () => {
+  if (hasMoreProducts.value) {
+    currentPage.value += 1;
+  }
+};
+
+const goToPreviousPage = () => {
+  if (currentPage.value > 1) {
+    currentPage.value -= 1;
+  }
+};
+
+// Handle form submission
+const handleFormSubmit = async (product: Product) => {
+  if (selectedProduct.value && selectedProduct.value.id !== undefined) {
+    // Update product
+    try {
+      const response = await productStore.updateProduct(
+        selectedProduct.value.id,
+        product
+      );
+      if (response.status === 1) {
+        alert("Product updated successfully");
+      } else {
+        console.log("hi");
+
+        const err = response.message;
+        console.log(err);
+
+        alert(err.response.data.error[0].message);
+      }
+    } catch (error) {
+      console.error("Error updating product:", error);
+      alert("Failed to update product. Please try again.");
+    }
+  } else {
+    // Add new product
+    try {
+      const response = await productStore.addProduct(product);
+      if (response.status === 1) {
+        alert("Product created successfully");
+      } else {
+        console.log("hi");
+
+        const err = response.message;
+        console.log(err);
+
+        alert(err.response.data.error[0].message);
+      }
+    } catch (error) {
+      console.error("Error adding product:", error);
+      alert("Failed to add product. Please try again.");
+    }
+  }
+  dialogForm.value = false;
+  await fetchProductData();
+};
+
+// Close form and redirect to home
+const closeForm = () => {
+  dialogForm.value = false;
+  router.push("/home");
+};
+</script>
+
+<style scoped>
+.product-heading {
+  font-weight: bolder;
+  font-family: "Trebuchet MS", "Lucida Sans Unicode", "Lucida Grande",
+    "Lucida Sans", Arial, sans-serif;
+  margin-top: 2%;
+}
+
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* 3 columns in a row */
+  gap: 30px;
+  justify-content: center;
+  margin-top: 20px;
+  width: 1200px;
+  height: auto;
+}
+
+.product-card {
+  width: 100%;
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 15px;
+  font-family: "Trebuchet MS", "Lucida Sans Unicode", "Lucida Grande",
+    "Lucida Sans", Arial, sans-serif;
+}
+
+.product-card.admin-card {
+  background-color: #f9f9f9; /* Different background for admin */
+}
+
+.search-bar {
+  max-width: 300px;
+  margin-right: 20px;
+}
+
+.product-image {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.product-details {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+}
+
+.product-title {
+  font-size: 1.2rem;
+  margin: 0;
+}
+
+.product-price {
+  font-size: 1rem;
+  margin: 10px 0;
+}
+
+.product-description {
+  font-size: 0.9rem;
+  color: #383838;
+}
+
+.product-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.btn {
+  flex: 1;
+  padding: 5px 8px;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background-color: #42b983;
+  display: flex;
+}
+
+.btn-secondary {
+  background-color: #6c757d;
+}
+
+.btn-danger {
+  background-color: #dc3545;
+}
+
+.top-bar {
+  display: flex;
+  align-items: center;
+}
+
+.add-product-btn {
+  margin-left: 16px;
+}
+
+.pagination-controls {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.pagination-btn {
+  margin: 0 5px;
+}
+</style>
+
+
+
+
+cart.vue 
+
+
+<template>
+  <div class="container">
+    <div class="card">
+      <div class="card-title">YOUR CART</div>
+      <br />
+      <div v-if="cartItems.length === 0" class="card-subtitle">
+        No items in the cart.
+      </div>
+      <div v-else>
+        <div class="header-table">
+          <div class="header">Product Name</div>
+          <div class="header">Price</div>
+          <div class="header">Quantity</div>
+          <div class="header">Actions</div>
+        </div>
+        <div v-for="item in cartItems" :key="item.product.id" class="data-row">
+          <div class="item-col">{{ item.product.name }}</div>
+          <div class="item-col">Rs. {{ item.product.price }}</div>
+          <div class="item-col">{{ item.quantity }}</div>
+          <div class="item-col actions-col">
+            <span class="icon" @click="removeFromCart(item.product.id)">
+              <v-icon left>mdi-delete</v-icon>
+            </span>
+          </div>
+        </div>
+      </div>
+      <br />
+      <br />
+      <hr class="divider" />
+      <div class="button-container">
+        <button class="check-out-btn" @click="navigateToCheckout">
+          CHECKOUT
+        </button>
+        <button class="close-btn" @click="navigateToHome">Close</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { onMounted } from "vue";
+import { storeToRefs } from "pinia";
+import useProductStore from "@/stores/store";
+import { useRouter } from "vue-router";
+
+const productStore = useProductStore();
+const { cartItems } = storeToRefs(productStore);
+const router = useRouter();
+
+const fetchCartItems = async () => {
+  try {
+    await productStore.fetchCartItems();
+  } catch (error) {
+    console.error("Error fetching cart items:", error);
+    alert("Failed to fetch cart items. Please try again.");
+  }
+};
+
+const removeFromCart = async (productId) => {
+  try {
+    await productStore.removeFromCart(productId);
+    await fetchCartItems();
+  } catch (error) {
+    console.error("Error removing product from cart:", error);
+    alert("Failed to remove product from cart. Please try again.");
+  }
+};
+
+const navigateToHome = () => {
+  router.push("/home");
+};
+
+const navigateToCheckout = async () => {
+  if (cartItems.value.length === 0) {
+    alert(
+      "Your cart is empty. Add items to the cart before proceeding to checkout."
+    );
+    return;
+  }
+  router.push("/checkout");
+};
+
+onMounted(async () => {
+  await fetchCartItems();
+});
+</script>
+
+<style scoped>
+.modal-title {
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 20px;
+  text-align: center;
+  color: #333;
+}
+
+.container {
+  margin-right: auto;
+  color: #333;
+  font-family: "Trebuchet MS", "Lucida Sans Unicode", "Lucida Grande",
+    "Lucida Sans", Arial, sans-serif;
+  font-size: 14px;
+  background-color: #fff;
+  margin-top: 20%;
+  padding: 20px;
+  box-shadow: 0 4px 10px rgba(247, 247, 247, 0.1);
+  text-align: center;
+}
+
+.card {
+  background: #fff;
+  width: 800px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  margin-left: 20%;
+  font-size: 18px;
+}
+
+.card-title {
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 20px;
+  color: #333;
+}
+
+.card-subtitle {
+  font-size: 18px;
+  color: #666;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.header-table {
+  display: grid;
+  grid-template-columns: 3fr 1fr 1fr 0.5fr;
+  gap: 10px;
+  font-weight: bold;
+  background: linear-gradient(135deg, #5d5d5d, #969494);
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  color: #fff;
+  text-transform: uppercase;
+}
+
+.header {
+  text-align: center;
+}
+
+.data-row {
+  display: grid;
+  grid-template-columns: 3fr 1fr 1fr 0.5fr;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  background-color: #f8f8f8;
+  border-bottom: 1px solid #ccc;
+  margin-bottom: 10px;
+  font-size: 18px;
+}
+
+.button-container {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 20px;
+}
+
+.check-out-btn,
+.close-btn {
+  padding: 10px 20px;
+  font-size: 16px;
+  font-weight: bold;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.check-out-btn {
+  background-color: #25c25f;
+  color: #fff;
+  font-size: 18px;
+}
+
+.check-out-btn:hover {
+  background-color: #434649;
+}
+
+.close-btn {
+  background-color: #007bff;
+  color: #fff;
+  font-size: 18px;
+}
+
+.close-btn:hover {
+  background-color: #434649;
+}
+
+.item-col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+}
+
+.actions-col {
+  display: flex;
+  justify-content: center;
+}
+
+.icon {
+  cursor: pointer;
+  color: #007bff;
+  transition: color 0.3s;
+}
+
+.icon:hover {
+  color: #ff5722;
+}
+</style>
+
+
+order.vue
+
+
+<template>
+  <div class="container">
+    <div class="card">
+      <h1 class="card-title">Order Confirmation</h1>
+      <br />
+
+      <div class="order-confirmation">
+        <div class="order-icon">
+          <i class="fas fa-check-circle"></i>
+        </div>
+        <h2>Thank you for your order!</h2>
+        <p>Your order has been placed successfully.</p>
+        <p>
+          Order Total:
+          <strong>Rs. {{ orderDetails?.totalprice || "N/A" }}</strong>
+        </p>
+      </div>
+      <br />
+
+      <!-- Order Details Table -->
+      <div v-if="orderDetails" class="order-details">
+        <h2>ORDER DETAILS</h2>
+        <table class="order-details-table">
+          <tbody>
+            <tr>
+              <td class="order-info-label">Order ID</td>
+              <td class="order-info-value">{{ orderDetails.id }}</td>
+            </tr>
+            <tr>
+              <td class="order-info-label">Customer Name</td>
+              <td class="order-info-value">{{ orderDetails.customername }}</td>
+            </tr>
+            <tr>
+              <td class="order-info-label">Delivery Address</td>
+              <td class="order-info-value">
+                <div>{{ orderDetails.streetaddress }}</div>
+                <div>
+                  {{ orderDetails.city }}, {{ orderDetails.state }}
+                  {{ orderDetails.zip }}
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td class="order-info-label">Total Amount</td>
+              <td class="order-info-value">
+                Rs. {{ orderDetails.totalprice }}
+              </td>
+            </tr>
+            <tr>
+              <td class="order-info-label">Items</td>
+              <td class="order-info-value">
+                <ul>
+                  <li v-for="item in orderDetails.items" :key="item.product.id">
+                    {{ item.product.name }} (x{{ item.quantity }})
+                  </li>
+                </ul>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <br />
+      <br />
+
+      <div class="card-actions">
+        <button @click="redirectToHome" class="btn btn-primary">
+          Return to Home
+        </button>
+        <button @click="AllOrders" class="btn btn-secondary">
+          View All Orders
+        </button>
+      </div>
+    </div>
+
+    <!-- Modal -->
+    <div v-if="showModal" class="modal-overlay">
+      <div class="modal-content">
+        <h2>All ORDERS</h2>
+        <br />
+        <div class="order-table">
+          <div class="table-header">
+            <div class="header-cell">Order ID</div>
+            <div class="header-cell">Total Amount</div>
+            <div class="header-cell">Items</div>
+          </div>
+          <div v-for="order in orders" :key="order.id" class="table-row">
+            <div class="table-cell">{{ order.id }}</div>
+            <div class="table-cell">Rs. {{ order.totalprice }}</div>
+            <div class="table-cell">
+              <ul>
+                <li v-for="item in order.items" :key="item.product.id">
+                  {{ item.product.name }} (x{{ item.quantity }})
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <br />
+        <button @click="showModal = false" class="btn btn-primary">Back</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script lang="ts" setup>
+import { ref, onMounted } from "vue";
+import { useRouter, useRoute } from "vue-router";
+import useStore from "@/stores/store";
+import type { Order } from "@/stores/store";
+
+const orderStore = useStore();
+const router = useRouter();
+const route = useRoute();
+const showModal = ref(false);
+const orderDetails = ref<Order | null>(null);
+const orders = ref<Order[]>([]);
+
+const redirectToHome = () => {
+  router.push("/home");
+};
+
+const fetchAllOrders = async () => {
+  try {
+    orders.value = (await orderStore.fetchUserOrders()) || [];
+  } catch (error) {
+    console.error("Failed to fetch orders:", error);
+  }
+};
+
+const AllOrders = () => {
+  fetchAllOrders();
+  showModal.value = true;
+};
+
+const fetchOrder = async () => {
+  const orderId = route.params.id;
+  console.log("Order ID:", orderId);
+
+  if (orderId) {
+    try {
+      orderDetails.value = await orderStore.fetchOrderDetails(Number(orderId));
+      console.log("Fetched Order Details:", orderDetails.value);
+    } catch (error) {
+      console.error("Failed to fetch order details:", error);
+    }
+  }
+};
+
+// Fetch the order details and all orders when the component mounts
+onMounted(() => {
+  fetchOrder();
+  fetchAllOrders();
+});
+</script>
+
+<style scoped>
+.container {
+  padding: 20px;
+  font-family: "Trebuchet MS", "Lucida Sans Unicode", "Lucida Grande",
+    "Lucida Sans", Arial, sans-serif;
+  margin: 0 auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  width: 700px;
+  margin-left: 40%;
+}
+
+.card {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  text-align: center;
+  width: 100%;
+  width: 800px;
+}
+
+.order-confirmation {
+  margin-bottom: 20px;
+}
+
+.order-icon {
+  color: #28a745;
+  margin-bottom: 20px;
+}
+
+.card-title {
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 20px;
+}
+
+.order-details {
+  margin-top: 20px;
+  text-align: left;
+  font-size: large;
+  text-wrap: nowrap;
+}
+
+.order-details h2 {
+  margin-bottom: 10px;
+  color: black;
+  font-family: "Trebuchet MS", "Lucida Sans Unicode", "Lucida Grande",
+    "Lucida Sans", Arial, sans-serif;
+}
+
+.order-details-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.order-details-table td {
+  padding: 10px;
+  border-bottom: 1px solid #ccc;
+}
+
+.order-info-label {
+  font-weight: bold;
+  width: 150px;
+  text-align: left;
+}
+
+.order-info-value {
+  text-align: left;
+}
+
+.order-info-value ul {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+}
+
+.card-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.btn {
+  padding: 10px 20px;
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.btn-primary {
+  background-color: #007bff;
+}
+
+.btn-secondary {
+  background-color: #6c757d;
+}
+
+.btn:hover {
+  background-color: #0056b3;
+}
+
+.btn-secondary:hover {
+  background-color: #5a6268;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 800px;
+  font-family: "Trebuchet MS", "Lucida Sans Unicode", "Lucida Grande",
+    "Lucida Sans", Arial, sans-serif;
+}
+
+.order-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table-header {
+  display: flex;
+  font-weight: bold;
+  border-bottom: 2px solid #000;
+  background-color: #f4f4f4;
+}
+
+.table-row {
+  display: flex;
+  border-bottom: 1px solid #ccc;
+}
+
+.table-cell {
+  flex: 1;
+  padding: 10px;
+  text-align: left;
+}
+
+.header-cell {
+  flex: 1;
+  padding: 10px;
+  border-bottom: 2px solid #000;
+  background-color: #f4f4f4;
+}
+</style>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+new checkout.vue 
+<template>
+  <div class="container">
+    <div class="card">
+      <h1 class="card-title">CHECKOUT</h1>
+      <br />
+
+      <div class="content-wrapper">
+        <!-- Order Details Section -->
+        <div class="order-details">
+          <h2>Order Details</h2>
+          <div class="card-text">
+            <table class="product-table">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Quantity</th>
+                  <th>Price</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in cartItems" :key="item.product.id">
+                  <td>{{ item.product.name }}</td>
+                  <td>{{ item.quantity }}</td>
+                  <td>Rs. {{ item.product.price }}</td>
+                  <td>Rs. {{ item.product.price * item.quantity }}</td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="3" class="total-label">TOTAL</td>
+                  <td class="total-amount">Rs. {{ totalPrice }}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        <!-- Divider -->
+        <div class="divider"></div>
+
+        <!-- Customer Details Section -->
+        <div class="customer-details">
+          <h2>Customer Details</h2>
+          <div class="card-subtitle">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="username">User Name</label>
+                <input
+                  id="username"
+                  type="text"
+                  v-model="username"
+                  class="form-control"
+                  readonly
+                />
+              </div>
+              <div class="form-group">
+                <label for="customername">Full Name</label>
+                <input
+                  id="customername"
+                  type="text"
+                  v-model="customername"
+                  class="form-control"
+                  required
+                />
+              </div>
+            </div>
+            <br />
+            <!-- Delivery Address Section -->
+            <div class="address-section">
+              <h3>Delivery Address</h3>
+              <div v-if="!address.street">
+                <p>
+                  No address found.
+                  <a href="#" @click="openModal">Create New Address</a>
+                </p>
+              </div>
+              <div v-else>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="streetaddress">Street</label>
+                    <input
+                      id="streetaddress"
+                      type="text"
+                      v-model="address.street"
+                      class="form-control"
+                      required
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label for="city">City</label>
+                    <input
+                      id="city"
+                      type="text"
+                      v-model="address.city"
+                      class="form-control"
+                      required
+                    />
+                  </div>
+                </div>
+                <br />
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="state">State</label>
+                    <input
+                      id="state"
+                      type="text"
+                      v-model="address.state"
+                      class="form-control"
+                      required
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label for="zipCode">Zip Code</label>
+                    <input
+                      id="zipCode"
+                      type="text"
+                      v-model="address.zipcode"
+                      class="form-control"
+                      required
+                    />
+                  </div>
+                </div>
+                <button class="btn btn-secondary" @click="openModal">
+                  Use Another Address
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <br />
+      <br />
+      <div class="card-actions">
+        <button @click="placeOrder" class="btn btn-primary">Place Order</button>
+      </div>
+    </div>
+
+    <!-- Address Modal -->
+    <div v-if="showModal" class="modal">
+      <div class="modal-content">
+        <h3>Create New Address</h3>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="newStreet">Street</label>
+            <input
+              id="newStreet"
+              type="text"
+              v-model="newAddress.street"
+              class="form-control"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="newCity">City</label>
+            <input
+              id="newCity"
+              type="text"
+              v-model="newAddress.city"
+              class="form-control"
+              required
+            />
+          </div>
+        </div>
+        <br />
+        <div class="form-row">
+          <div class="form-group">
+            <label for="newState">State</label>
+            <input
+              id="newState"
+              type="text"
+              v-model="newAddress.state"
+              class="form-control"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="newZip">Zip Code</label>
+            <input
+              id="newZip"
+              type="text"
+              v-model="newAddress.zipcode"
+              class="form-control"
+              required
+            />
+          </div>
+        </div>
+        <br />
+        <div class="modal-actions">
+          <button @click="saveNewAddress" class="btn btn-primary">Save</button>
+          <button @click="closeModal" class="btn btn-secondary">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script lang="ts" setup>
+import { ref, computed, onMounted } from "vue";
+import { useRouter } from "vue-router";
+import useProductStore from "@/stores/store";
+
+// Setup store and routing
+const store = useProductStore();
+const router = useRouter();
+
+// User information and modal control
+const username = ref("");
+const customername = ref("");
+const showModal = ref(false);
+
+// New address input model
+const newAddress = ref({
+  street: "",
+  city: "",
+  state: "",
+  zipcode: "",
+});
+
+// Default address model
+const address = ref({
+  street: "",
+  city: "",
+  state: "",
+  zipcode: "",
+});
+
+// Cart items and total price calculation
+const cartItems = computed(() => store.cartItems);
+const totalPrice = computed(() =>
+  cartItems.value.reduce(
+    (total, item) => total + item.product.price * item.quantity,
+    0
+  )
+);
+
+// Fetch default address on component mount
+onMounted(async () => {
+  const response = await store.fetchAddress();
+  if (response.status === 1) {
+    address.value = response.address;
+  } else {
+    alert("Failed to fetch address.");
+  }
+});
+
+// Place order function
+const placeOrder = async () => {
+  // Validate input fields
+  if (
+    !username.value ||
+    !customername.value ||
+    !address.value.street ||
+    !address.value.city ||
+    !address.value.state ||
+    !address.value.zipcode
+  ) {
+    alert("Please fill in all required fields.");
+    return;
+  }
+
+  // Check if cart is empty
+  if (cartItems.value.length === 0) {
+    alert("Your cart is empty. Add items before placing an order.");
+    return;
+  }
+
+  // Prepare order details
+  const orderDetails = {
+    username: username.value,
+    customername: customername.value,
+    streetaddress: address.value.street,
+    city: address.value.city,
+    state: address.value.state,
+    zip: address.value.zipcode,
+    items: cartItems.value,
+    totalAmount: totalPrice.value,
+  };
+
+  // Store order
+  const response = await store.storeOrder({
+    customername: orderDetails.customername,
+    streetaddress: orderDetails.streetaddress,
+    city: orderDetails.city,
+    state: orderDetails.state,
+    zip: orderDetails.zip,
+    items: orderDetails.items,
+    totalprice: orderDetails.totalAmount,
+  });
+
+  // Handle store response
+  if (response.status === 1) {
+    console.log(response);
+    await store.clearCart();
+    router.push(`/order/${response.orderId}`);
+  } else {
+    const err = response?.message;
+    alert(err.response.data.errors[0].message);
+  }
+};
+
+// Open modal for new address
+const openModal = () => {
+  showModal.value = true;
+};
+
+// Close modal
+const closeModal = () => {
+  showModal.value = false;
+};
+
+// Save new address
+const saveNewAddress = async () => {
+  // Validate new address input
+  if (
+    !newAddress.value.street ||
+    !newAddress.value.city ||
+    !newAddress.value.state ||
+    !newAddress.value.zipcode
+  ) {
+    alert("Please fill in all fields.");
+    return;
+  }
+
+  // Save new address and update default address
+  const response = await store.storeAddress(newAddress.value);
+  if (response.status === 1) {
+    address.value = newAddress.value;
+    closeModal();
+  } else {
+    alert("Failed to save new address.");
+  }
+};
+</script>
+
+<style scoped>
+/* Container styling */
+.container {
+  padding: 20px;
+  font-family: "Trebuchet MS", "Lucida Sans Unicode", "Lucida Grande",
+    "Lucida Sans", Arial, sans-serif;
+  margin-top: 10%;
+}
+
+.card {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  margin-bottom: 10px;
+  height: 700px;
+  width: 1100px;
+}
+
+.content-wrapper {
+  display: flex;
+  justify-content: space-between;
+  gap: 40px;
+}
+
+.order-details,
+.customer-details {
+  flex: 1;
+}
+
+.order-details h2,
+.customer-details h2 {
+  font-size: 25px;
+  font-weight: 100;
+  margin-bottom: 15px;
+}
+
+.address-section {
+  margin-top: 20px;
+}
+
+.address-section h3 {
+  font-size: 20px;
+  font-weight: bold;
+  margin-bottom: 15px;
+}
+
+.divider {
+  border-top: 2px solid #ddd;
+  margin: 20px 0;
+}
+
+.form-row {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.form-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  font-size: 19px;
+}
+
+.form-group label {
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.form-control {
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 18px;
+}
+
+.product-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.product-table th,
+.product-table td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+
+.product-table th {
+  background-color: #f4f4f4;
+  font-weight: bold;
+}
+
+.product-table tfoot tr {
+  font-weight: bold;
+}
+
+.total-label {
+  text-align: right;
+}
+
+.total-amount {
+  color: #007bff;
+}
+
+.card-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn {
+  padding: 10px 20px;
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 18px;
+  justify-content: center;
+}
+
+.btn-secondary {
+  background-color: #6c757d;
+}
+
+.btn:hover {
+  background-color: #0056b3;
+}
+
+/* Add modal styling */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-content {
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  width: 400px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.modal-actions .btn {
+  padding: 10px 20px;
+  cursor: pointer;
+}
+</style>
+
+
+
+new store.ts
+
+
+
+import axios from "axios";
+import { defineStore } from "pinia";
+import { ref } from "vue";
+
+export type Product = {
+  id: number;
+  name: string;
+  description: string | null;
+  price: number;
+  imageurl: string | null;
+};
+
+export type CartItem = {
+  product: Product;
+  quantity: number;
+};
+
+export type Order = {
+  id: number;
+  customername: string;
+  streetaddress: string;
+  city: string;
+  state: string;
+  zip: string;
+  items: CartItem[];
+  totalprice: number;
+  orderDate: string;
+};
+
+export type Address = {
+  street: string;
+  city: string;
+  state: string;
+  zipcode: string;
+};
+
+const url = import.meta.env.VITE_APP_URL;
+const cartUrl = `${url}/cart`;
+const orderUrl = `${url}/orders`;
+const errorMessage = ref("");
+const useProductStore = defineStore("productStore", () => {
+  const orders = ref<Order[]>([]);
+  const products = ref<Product[]>([]);
+  const cartItems = ref<CartItem[]>([]);
+  const isLoading = ref<boolean>(false);
+  const error = ref<string | null>(null);
+  const token = ref<string | null>(sessionStorage.getItem("authToken"));
+
+  const setAuthHeader = () => ({
+    headers: {
+      Authorization: `Bearer ${token.value}`,
+    },
+  });
+
+  const fetchProducts = async () => {
+    isLoading.value = true;
+    error.value = null;
+
+    try {
+      if (!token.value) {
+        error.value = "Authorization token is missing";
+        return;
+      }
+      const response = await axios.get(`${url}/products`, setAuthHeader());
+      products.value = response.data;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        error.value = err.response?.data?.message || "Failed to fetch products";
+      } else {
+        error.value = "An unknown error occurred";
+      }
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  const addProduct = async (inputData: Omit<Product, "id">) => {
+    try {
+      if (!token.value) {
+        error.value = "Authorization token is missing";
+        return { status: 0, message: "Authorization token is missing" };
+      }
+      const response = await axios.post(
+        `${url}/products/add`,
+        inputData,
+        setAuthHeader()
+      );
+      console.log(response.data);
+      await fetchProducts();
+      return { status: 1, message: {} };
+    } catch (errors) {
+      console.log("Error in addProduct:", errors);
+      return {
+        status: 0,
+        message: errors || "An unexpected error occurred",
+      };
+    }
+  };
+
+  const updateProduct = async (id: number, inputData: Product) => {
+    try {
+      if (!token.value) {
+        error.value = "Authorization token is missing";
+        return;
+      }
+      const response = await axios.put(
+        `${url}/products/${id}`,
+        inputData,
+        setAuthHeader()
+      );
+      console.log(response.data);
+
+      await fetchProducts();
+      return { status: 1, message: {} };
+    } catch (errors) {
+      console.log("Error in UpdateProduct:", errors);
+      return {
+        status: 0,
+        message: errors || "An unexpected error occurred",
+      };
+    }
+  };
+
+  const deleteProduct = async (id: number) => {
+    if (!token.value) {
+      error.value = "Authorization token is missing";
+      return;
+    }
+
+    try {
+      await axios.delete(`${url}/products/${id}`, setAuthHeader());
+      await fetchProducts();
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        error.value = err.response?.data?.message || "Failed to delete product";
+      } else {
+        error.value = "An unknown error occurred";
+      }
+    }
+  };
+
+  const addToCart = async (productId: number, quantity: number) => {
+    try {
+      if (!token.value) {
+        error.value = "Authorization token is missing";
+        return;
+      }
+      await axios.post(
+        `${cartUrl}/add`,
+        { productId, quantity },
+        setAuthHeader()
+      );
+      await fetchCartItems();
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        error.value =
+          err.response?.data?.message || "Failed to add product to cart";
+      } else {
+        error.value = "An unknown error occurred";
+      }
+    }
+  };
+
+  const removeFromCart = async (productId: number) => {
+    try {
+      if (!token.value) {
+        error.value = "Authorization token is missing";
+        return;
+      }
+      await axios.delete(`${cartUrl}/remove`, {
+        headers: setAuthHeader().headers,
+        params: { productId },
+      });
+      await fetchCartItems();
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        error.value =
+          err.response?.data?.message || "Failed to remove product from cart";
+      } else {
+        error.value = "An unknown error occurred";
+      }
+    }
+  };
+
+  const fetchCartItems = async () => {
+    isLoading.value = true;
+    error.value = null;
+
+    try {
+      if (!token.value) {
+        error.value = "Authorization token is missing";
+        return;
+      }
+      const response = await axios.get(cartUrl, setAuthHeader());
+      cartItems.value = response.data;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        error.value =
+          err.response?.data?.message || "Failed to fetch cart items";
+      } else {
+        error.value = "An unknown error occurred";
+      }
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  const clearCart = async () => {
+    try {
+      if (!token.value) {
+        error.value = "Authorization token is missing";
+        return;
+      }
+      await axios.delete(`${cartUrl}/clear`, setAuthHeader());
+      cartItems.value = [];
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        error.value =
+          err.response?.data?.message || "Failed to clear cart items";
+      } else {
+        error.value = "An unknown error occurred";
+      }
+    }
+  };
+
+  const fetchUserOrders = async () => {
+    isLoading.value = true;
+    error.value = null;
+
+    try {
+      if (!token.value) {
+        error.value = "Authorization token is missing";
+        return;
+      }
+      const response = await axios.get(`${orderUrl}/view`, setAuthHeader());
+      console.log(response.data.data);
+      return response.data.data;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        error.value = err.response?.data?.message || "Failed to fetch orders";
+      } else {
+        error.value = "An unknown error occurred";
+      }
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  const storeOrder = async (inputData: Omit<Order, "id" | "orderDate">) => {
+    if (!token.value) {
+      error.value = "Authorization token is missing";
+      return;
+    }
+
+    const { customername, streetaddress, city, state, zip, items, totalprice } =
+      inputData;
+
+    const orderData = {
+      customername: customername,
+      items: JSON.stringify(items),
+      totalprice: totalprice,
+      streetaddress: streetaddress,
+      city: city,
+      state: state,
+      zipcode: zip,
+    };
+
+    try {
+      const response = await axios.post(
+        `${orderUrl}/add`,
+        orderData,
+        setAuthHeader()
+      );
+      console.log(response.data);
+      fetchUserOrders();
+      return { status: 1, orderId: response.data.data.id, message: {} };
+    } catch (errors) {
+      console.log(errors);
+      return {
+        status: 0,
+        orderId: 0,
+        message: errors,
+      };
+    }
+  };
+
+  const fetchOrderDetails = async (id: number) => {
+    isLoading.value = true;
+    error.value = null;
+
+    try {
+      if (!token.value) {
+        error.value = "Authorization token is missing";
+        return;
+      }
+      const response = await axios.get(
+        `${orderUrl}/show/${id}`,
+        setAuthHeader()
+      );
+      console.log(response.data.data);
+
+      return response.data.data;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        error.value =
+          err.response?.data?.message || "Failed to fetch order details";
+      } else {
+        error.value = "An unknown error occurred";
+      }
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  const fetchAddress = async () => {
+    isLoading.value = true;
+    error.value = null;
+
+    try {
+      const username = sessionStorage.getItem("username");
+      if (!username) {
+        error.value = "Username is missing";
+        return;
+      }
+
+      if (!token.value) {
+        error.value = "Authorization token is missing";
+        return;
+      }
+
+      console.log("Fetching address for username:", username);
+
+      const response = await axios.get(
+        `${orderUrl}/${username}`,
+        setAuthHeader()
+      );
+
+      console.log("Address fetched:", response.data);
+
+      return response.data;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        error.value =
+          err.response?.data?.message || "Failed to fetch user address";
+      } else {
+        error.value = "An unknown error occurred";
+      }
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  return {
+    products,
+    orders,
+    fetchProducts,
+    addProduct,
+    updateProduct,
+    deleteProduct,
+    cartItems,
+    addToCart,
+    removeFromCart,
+    fetchCartItems,
+    clearCart,
+    storeOrder,
+    fetchOrderDetails,
+    fetchUserOrders,
+    fetchAddress,
+    errorMessage,
+  };
+});
+
+export default useProductStore;
+
+
+

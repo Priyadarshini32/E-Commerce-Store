@@ -33,7 +33,12 @@
         <div class="error-message" v-if="errorMessage">
           {{ errorMessage }}
         </div>
-        <button type="submit">Login</button>
+        <button type="submit">
+          <v-btn>
+            <v-icon left>mdi-login</v-icon>
+            Login
+          </v-btn>
+        </button>
       </form>
       <p class="register-link">
         Not registered? <router-link to="/register">Register here</router-link>
@@ -47,7 +52,7 @@ import { ref } from "vue";
 import { useRouter } from "vue-router";
 import axios from "axios";
 
-const url = import.meta.env.VITE_APP_URL; // Ensure this URL is correct
+const url = import.meta.env.VITE_APP_URL;
 const username = ref("");
 const password = ref("");
 const errorMessage = ref("");
@@ -61,14 +66,18 @@ const handleLogin = async () => {
     });
 
     if (response.status === 200) {
-      // Assuming response.data contains the token
       const token = response.data;
 
-      // Store token and user info in session storage
+      // Check if the user is 'Priya' and password is 'Priya@32'
+      if (username.value === "Priya" && password.value === "Priya@32") {
+        sessionStorage.setItem("isAdmin", "true");
+      } else {
+        sessionStorage.setItem("isAdmin", "false");
+      }
+
       sessionStorage.setItem("authToken", token);
       sessionStorage.setItem("loggedInUser", username.value);
 
-      // Redirect to home page
       router.push("/home");
     } else {
       errorMessage.value = "Invalid username or password.";
@@ -95,6 +104,7 @@ const handleLogin = async () => {
     "Lucida Sans", Arial, sans-serif;
   font-weight: bolder;
   margin-left: 7%;
+  margin-top: 5%;
 }
 
 .login-form {
@@ -175,8 +185,6 @@ const handleLogin = async () => {
 }
 
 .login-form button {
-  width: 100%;
-  padding: 12px;
   background-color: #42b983;
   color: #fff;
   border: none;
@@ -184,7 +192,6 @@ const handleLogin = async () => {
   cursor: pointer;
   font-size: 16px;
   transition: background-color 0.3s ease;
-  margin-top: 20px;
 }
 
 .login-form button:hover {

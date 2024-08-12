@@ -23,6 +23,7 @@ const routes = [
     component: Login,
     meta: { requiresAuth: false },
   },
+
   {
     path: "/logout",
     name: "Logout",
@@ -41,19 +42,6 @@ const routes = [
     component: Homepage,
     meta: { requiresAuth: true },
   },
-  // {
-  //   path: "/add",
-  //   name: "AddProduct",
-  //   component: AddEdit,
-  //   props: { mode: "add" }, // Pass mode as a prop to differentiate between add and edit
-  // },
-  // {
-  //   path: "/edit/:id",
-  //   name: "EditProduct",
-  //   component: AddEdit,
-  //   props: true,
-  //   meta: { requiresAuth: true },
-  // }
   {
     path: "/cart",
     name: "Cart",

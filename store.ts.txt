@@ -2567,3 +2567,755 @@ export default useProductStore;
 
 
 
+
+
+category included productform.vue 
+
+
+<template>
+  <v-dialog v-model="dialog" width="650px" persistent>
+    <v-card class="full-height-card">
+      <v-card-title>
+        <span :class="headingClass">{{ dialogTitle }}</span>
+      </v-card-title>
+
+      <v-card-text class="form-content">
+        <v-form @submit.prevent="submitForm">
+          <v-container>
+            <v-row>
+              <v-col cols="4">
+                <label class="form-label" for="product-name">Name</label>
+              </v-col>
+              <v-col cols="8">
+                <v-text-field
+                  v-model="formProduct.name"
+                  id="product-name"
+                  placeholder="Enter product name"
+                  required
+                  hide-details
+                  class="custom-placeholder"
+                />
+              </v-col>
+            </v-row>
+            <v-row>
+              <v-col cols="4">
+                <label class="form-label" for="product-category"
+                  >Category</label
+                >
+              </v-col>
+              <v-col cols="8">
+                <v-select
+                  v-model="selectedCategory"
+                  :items="categoryOptions"
+                  label="Select or enter category"
+                  required
+                  hide-details
+                  class="custom-placeholder"
+                />
+              </v-col>
+            </v-row>
+
+            <v-row v-if="showNewCategoryInput">
+              <v-col cols="4">
+                <label class="form-label" for="new-category"
+                  >New Category</label
+                >
+              </v-col>
+              <v-col cols="8">
+                <v-text-field
+                  v-model="newCategory"
+                  id="new-category"
+                  placeholder="Enter new category"
+                  hide-details
+                  class="custom-placeholder"
+                />
+              </v-col>
+            </v-row>
+
+            <v-row>
+              <v-col cols="4">
+                <label class="form-label" for="product-price">Price</label>
+              </v-col>
+              <v-col cols="8">
+                <v-text-field
+                  v-model.number="formProduct.price"
+                  id="product-price"
+                  placeholder="Enter price"
+                  type="number"
+                  min="0"
+                  required
+                  hide-details
+                  class="custom-placeholder"
+                />
+              </v-col>
+            </v-row>
+
+            <v-row>
+              <v-col cols="4">
+                <label class="form-label" for="product-description"
+                  >Description</label
+                >
+              </v-col>
+              <v-col cols="8">
+                <v-textarea
+                  v-model="formProduct.description"
+                  id="product-description"
+                  placeholder="Enter description"
+                  auto-grow
+                  hide-details
+                  class="custom-placeholder"
+                />
+              </v-col>
+            </v-row>
+
+            <v-row>
+              <v-col cols="4">
+                <label class="form-label" for="product-image-url"
+                  >Image URL</label
+                >
+              </v-col>
+              <v-col cols="8">
+                <v-text-field
+                  v-model="formProduct.imageurl"
+                  id="product-image-url"
+                  placeholder="Enter image URL"
+                  hide-details
+                  class="custom-placeholder"
+                />
+              </v-col>
+            </v-row>
+          </v-container>
+        </v-form>
+      </v-card-text>
+
+      <v-card-actions class="actions">
+        <v-btn color="primary" dark class="submit-btn" @click="submitForm">
+          Submit
+          <v-icon icon="mdi-checkbox-marked-circle" end></v-icon>
+        </v-btn>
+
+        <v-btn class="cancel-btn" color="orange-darken-2" @click="closeModal">
+          <v-icon icon="mdi-arrow-left" start></v-icon>Cancel
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+</template>
+
+<script setup lang="ts">
+import { ref, watch, computed } from "vue";
+import type { Product } from "../stores/store";
+
+const props = defineProps<{
+  product?: Product;
+  dialogVisible: boolean;
+  categories: string[]; // Pass categories as a prop
+}>();
+
+const emit = defineEmits<{
+  (event: "form-submit", product: Product): void;
+  (event: "close-modal"): void;
+}>();
+
+const dialog = ref(props.dialogVisible);
+
+const formProduct = ref<Product>({
+  id: props.product?.id ?? 0,
+  category: props.product?.category ?? "",
+  name: props.product?.name ?? "",
+  price: props.product?.price ?? 0,
+  description: props.product?.description ?? "",
+  imageurl: props.product?.imageurl ?? "",
+});
+
+const newCategory = ref<string>("");
+
+const categoryOptions = computed(() => {
+  return [...props.categories, "Other"];
+});
+
+const showNewCategoryInput = computed(() => {
+  return selectedCategory.value === "Other";
+});
+
+const selectedCategory = ref(props.product?.category ?? "");
+
+const dialogTitle = computed(() => {
+  return formProduct.value.id === 0 ? "Add Product" : "Edit Product";
+});
+
+const headingClass = computed(() => {
+  return formProduct.value.id === 0 ? "headline-add" : "headline-edit";
+});
+
+watch(
+  () => props.product,
+  (newProduct) => {
+    if (newProduct) {
+      formProduct.value = { ...newProduct };
+      selectedCategory.value = newProduct.category;
+    } else {
+      formProduct.value = {
+        id: 0,
+        category: "",
+        name: "",
+        price: 0,
+        description: "",
+        imageurl: "",
+      };
+      selectedCategory.value = "";
+    }
+    newCategory.value = "";
+  },
+  { immediate: true }
+);
+
+watch(
+  () => props.dialogVisible,
+  (newValue) => {
+    dialog.value = newValue;
+  }
+);
+
+function closeModal() {
+  dialog.value = false;
+  emit("close-modal");
+}
+
+function submitForm() {
+  if (validateForm()) {
+    const category =
+      selectedCategory.value === "Other"
+        ? newCategory.value
+        : selectedCategory.value;
+    const product: Product = { ...formProduct.value, category };
+    emit("form-submit", product);
+    closeModal();
+  }
+}
+
+function validateForm(): boolean {
+  if (!formProduct.value.name || formProduct.value.price <= 0) {
+    alert("Please provide valid product details.");
+    return false;
+  }
+  if (!selectedCategory.value && !newCategory.value) {
+    alert("Please select or enter a category.");
+    return false;
+  }
+  return true;
+}
+</script>
+
+<style scoped>
+.full-height-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.form-content {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.actions {
+  display: flex;
+  justify-content: space-between;
+  padding: 16px;
+  font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
+}
+
+.submit-btn {
+  margin-right: 8px;
+}
+
+.cancel-btn {
+  margin-left: 8px;
+}
+
+.headline-add {
+  font-size: 1.5rem;
+  color: green;
+  font-family: "Trebuchet MS", "Lucida Sans Unicode", "Lucida Grande";
+}
+
+.headline-edit {
+  font-size: 1.5rem;
+  color: orange;
+}
+
+.font {
+  font-family: "Trebuchet MS", "Lucida Sans Unicode", "Lucida Grande";
+}
+
+.form-label {
+  font-size: 15px;
+  font-family: cursive;
+  font-weight: 400;
+}
+</style>
+
+
+
+default address viewedcheckout code 
+
+<template>
+  <div class="container">
+    <div class="card">
+      <h1 class="card-title">CHECKOUT</h1>
+      <br />
+
+      <div class="content-wrapper">
+        <!-- Order Details Section -->
+        <div class="order-details">
+          <h2>Order Details</h2>
+          <div class="card-text">
+            <table class="product-table">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Quantity</th>
+                  <th>Price</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in cartItems" :key="item.product.id">
+                  <td>{{ item.product.name }}</td>
+                  <td>{{ item.quantity }}</td>
+                  <td>Rs. {{ item.product.price }}</td>
+                  <td>Rs. {{ item.product.price * item.quantity }}</td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="3" class="total-label">TOTAL</td>
+                  <td class="total-amount">Rs. {{ totalPrice }}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        <!-- Divider -->
+        <div class="divider"></div>
+
+        <!-- Customer Details Section -->
+        <div class="customer-details">
+          <h2>Customer Details</h2>
+          <div class="card-subtitle">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="username">User Name</label>
+                <input
+                  id="username"
+                  type="text"
+                  v-model="username"
+                  class="form-control"
+                  readonly
+                />
+              </div>
+              <div class="form-group">
+                <label for="customername">Full Name</label>
+                <input
+                  id="customername"
+                  type="text"
+                  v-model="customername"
+                  class="form-control"
+                  required
+                />
+              </div>
+            </div>
+            <br />
+            <!-- Delivery Address Section -->
+            <div class="address-section">
+              <h3>Delivery Address</h3>
+              <div v-if="!address.street">
+                <p>
+                  No address found.
+                  <a href="#" @click.prevent="openModal">Create New Address</a>
+                </p>
+              </div>
+              <div v-else>
+                <h4>Default Address</h4>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="streetaddress">Street</label>
+                    <input
+                      id="streetaddress"
+                      type="text"
+                      v-model="address.street"
+                      class="form-control"
+                      readonly
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label for="city">City</label>
+                    <input
+                      id="city"
+                      type="text"
+                      v-model="address.city"
+                      class="form-control"
+                      readonly
+                    />
+                  </div>
+                </div>
+                <br />
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="state">State</label>
+                    <input
+                      id="state"
+                      type="text"
+                      v-model="address.state"
+                      class="form-control"
+                      readonly
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label for="zipCode">Zip Code</label>
+                    <input
+                      id="zipCode"
+                      type="text"
+                      v-model="address.zipcode"
+                      class="form-control"
+                      readonly
+                    />
+                  </div>
+                </div>
+                <button class="btn btn-secondary" @click="openModal">
+                  Use Another Address
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <br />
+      <br />
+      <div class="card-actions">
+        <button @click="placeOrder" class="btn btn-primary">Place Order</button>
+      </div>
+    </div>
+
+    <!-- Address Modal -->
+    <div v-if="showModal" class="modal">
+      <div class="modal-content">
+        <h3>Create New Address</h3>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="newStreet">Street</label>
+            <input
+              id="newStreet"
+              type="text"
+              v-model="newAddress.street"
+              class="form-control"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="newCity">City</label>
+            <input
+              id="newCity"
+              type="text"
+              v-model="newAddress.city"
+              class="form-control"
+              required
+            />
+          </div>
+        </div>
+        <br />
+        <div class="form-row">
+          <div class="form-group">
+            <label for="newState">State</label>
+            <input
+              id="newState"
+              type="text"
+              v-model="newAddress.state"
+              class="form-control"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="newZip">Zip Code</label>
+            <input
+              id="newZip"
+              type="text"
+              v-model="newAddress.zipcode"
+              class="form-control"
+              required
+            />
+          </div>
+        </div>
+        <br />
+        <div class="modal-actions">
+          <button @click="saveNewAddress" class="btn btn-primary">Save</button>
+          <button @click="closeModal" class="btn btn-secondary">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script lang="ts" setup>
+import { ref, computed, onMounted } from "vue";
+import { useRouter } from "vue-router";
+import useProductStore from "@/stores/store";
+
+// Setup store and routing
+const store = useProductStore();
+const router = useRouter();
+
+// User information and modal control
+const username = ref(sessionStorage.getItem("loggedInUser") || "");
+const customername = ref("");
+const showModal = ref(false);
+
+// New address input model
+const newAddress = ref({
+  street: "",
+  city: "",
+  state: "",
+  zipcode: "",
+});
+
+// Default address model
+const address = ref({
+  street: "",
+  city: "",
+  state: "",
+  zipcode: "",
+});
+
+// Cart items and total price calculation
+const cartItems = computed(() => store.cartItems);
+const totalPrice = computed(() =>
+  cartItems.value.reduce(
+    (total, item) => total + item.product.price * item.quantity,
+    0
+  )
+);
+
+onMounted(async () => {
+  const response = await store.fetchAddress();
+  console.log(response.data);
+
+  // Call the updated fetchAddress function
+  address.value = response.data;
+  return response.data;
+});
+
+// Place order function
+const placeOrder = async () => {
+  if (
+    !username.value ||
+    !customername.value ||
+    !address.value.street ||
+    !address.value.city ||
+    !address.value.state ||
+    !address.value.zipcode
+  ) {
+    alert("Please fill in all required fields.");
+    return;
+  }
+
+  if (cartItems.value.length === 0) {
+    alert("Your cart is empty. Add items before placing an order.");
+    return;
+  }
+
+  const orderDetails = {
+    customername: customername.value,
+    streetaddress: address.value.street,
+    city: address.value.city,
+    state: address.value.state,
+    zip: address.value.zipcode,
+    items: cartItems.value,
+    totalprice: totalPrice.value,
+  };
+
+  const response = await store.storeOrder({
+    customername: orderDetails.customername,
+    streetaddress: orderDetails.streetaddress,
+    city: orderDetails.city,
+    state: orderDetails.state,
+    zip: orderDetails.zip,
+    items: orderDetails.items,
+    totalprice: orderDetails.totalprice,
+  });
+
+  if (response.status === 1) {
+    alert("Order placed successfully.");
+    store.clearCart();
+    router.push("/order");
+  } else {
+    alert("Failed to place order.");
+  }
+};
+
+// Modal handling functions
+const openModal = () => {
+  showModal.value = true;
+};
+
+const closeModal = () => {
+  showModal.value = false;
+};
+
+const saveNewAddress = () => {
+  address.value = { ...newAddress.value };
+  closeModal();
+};
+</script>
+
+<style scoped>
+/* Container styling */
+.container {
+  padding: 20px;
+  font-family: "Trebuchet MS", "Lucida Sans Unicode", "Lucida Grande",
+    "Lucida Sans", Arial, sans-serif;
+  margin-top: 10%;
+}
+
+.card {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  margin-bottom: 10px;
+  height: 700px;
+  width: 1100px;
+}
+
+.content-wrapper {
+  display: flex;
+  justify-content: space-between;
+  gap: 40px;
+}
+
+.order-details,
+.customer-details {
+  flex: 1;
+}
+
+.order-details h2,
+.customer-details h2 {
+  font-size: 25px;
+  font-weight: 100;
+  margin-bottom: 15px;
+}
+
+.address-section {
+  margin-top: 20px;
+}
+
+.address-section h3 {
+  font-size: 20px;
+  font-weight: bold;
+  margin-bottom: 15px;
+}
+
+.divider {
+  border-top: 2px solid #ddd;
+  margin: 20px 0;
+}
+
+.form-row {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.form-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  font-size: 19px;
+}
+
+.form-group label {
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.form-control {
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 18px;
+}
+
+.product-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.product-table th,
+.product-table td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+
+.product-table th {
+  background-color: #f4f4f4;
+  font-weight: bold;
+}
+
+.product-table tfoot tr {
+  font-weight: bold;
+}
+
+.total-label {
+  text-align: right;
+}
+
+.total-amount {
+  color: #007bff;
+}
+
+.card-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn {
+  padding: 10px 20px;
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.btn-secondary {
+  background-color: #6c757d;
+}
+
+.btn:hover {
+  background-color: #0056b3;
+}
+
+.card {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.card-title {
+  font-size: 1.5rem;
+}
+
+.card-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.v-dialog__content--active {
+  overflow: visible;
+}
+</style>
+

@@ -4,6 +4,7 @@ import { ref } from "vue";
 
 export type Product = {
   id: number;
+  category: string;
   name: string;
   description: string | null;
   price: number;
@@ -27,6 +28,13 @@ export type Order = {
   orderDate: string;
 };
 
+export type Address = {
+  street: string;
+  city: string;
+  state: string;
+  zipcode: string;
+};
+
 const url = import.meta.env.VITE_APP_URL;
 const cartUrl = `${url}/cart`;
 const orderUrl = `${url}/orders`;
@@ -38,11 +46,6 @@ const useProductStore = defineStore("productStore", () => {
   const isLoading = ref<boolean>(false);
   const error = ref<string | null>(null);
   const token = ref<string | null>(sessionStorage.getItem("authToken"));
-  const userId = ref<number | null>(
-    sessionStorage.getItem("userId")
-      ? Number(sessionStorage.getItem("userId"))
-      : null
-  ); // Assuming the userId is stored as a string
 
   const setAuthHeader = () => ({
     headers: {
@@ -250,11 +253,9 @@ const useProductStore = defineStore("productStore", () => {
       return;
     }
 
-    // Extract fields from inputData
     const { customername, streetaddress, city, state, zip, items, totalprice } =
       inputData;
 
-    // Prepare orderData
     const orderData = {
       customername: customername,
       items: JSON.stringify(items),
@@ -295,12 +296,11 @@ const useProductStore = defineStore("productStore", () => {
       }
       const response = await axios.get(
         `${orderUrl}/show/${id}`,
-
         setAuthHeader()
       );
       console.log(response.data.data);
 
-      return response.data.data; // Return the order details from the response
+      return response.data.data;
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         error.value =
@@ -312,23 +312,64 @@ const useProductStore = defineStore("productStore", () => {
       isLoading.value = false;
     }
   };
+
+  const fetchAddress = async () => {
+    isLoading.value = true;
+    error.value = null;
+
+    try {
+      const username = sessionStorage.getItem("loggedInUser");
+      console.log(username);
+
+      if (!username) {
+        error.value = "Username is missing";
+        return;
+      }
+
+      if (!token.value) {
+        error.value = "Authorization token is missing";
+        return;
+      }
+
+      console.log("Fetching address for username:", username);
+
+      const response = await axios.get(
+        `${orderUrl}/${username}`,
+        setAuthHeader()
+      );
+
+      console.log("Address fetched:", response.data);
+
+      return response.data;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        error.value =
+          err.response?.data?.message || "Failed to fetch user address";
+      } else {
+        error.value = "An unknown error occurred";
+      }
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
   return {
     products,
-    cartItems,
-    isLoading,
-    error,
+    orders,
     fetchProducts,
     addProduct,
     updateProduct,
     deleteProduct,
+    cartItems,
     addToCart,
     removeFromCart,
     fetchCartItems,
     clearCart,
-    orders,
-    fetchUserOrders,
-    fetchOrderDetails,
     storeOrder,
+    fetchOrderDetails,
+    fetchUserOrders,
+    fetchAddress,
+    errorMessage,
   };
 });
 

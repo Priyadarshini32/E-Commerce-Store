@@ -23,6 +23,40 @@
                 />
               </v-col>
             </v-row>
+            <v-row>
+              <v-col cols="4">
+                <label class="form-label" for="product-category"
+                  >Category</label
+                >
+              </v-col>
+              <v-col cols="8">
+                <v-select
+                  v-model="selectedCategory"
+                  :items="categoryOptions"
+                  label="Select or enter category"
+                  required
+                  hide-details
+                  class="custom-placeholder"
+                />
+              </v-col>
+            </v-row>
+
+            <v-row v-if="showNewCategoryInput">
+              <v-col cols="4">
+                <label class="form-label" for="new-category"
+                  >New Category</label
+                >
+              </v-col>
+              <v-col cols="8">
+                <v-text-field
+                  v-model="newCategory"
+                  id="new-category"
+                  placeholder="Enter new category"
+                  hide-details
+                  class="custom-placeholder"
+                />
+              </v-col>
+            </v-row>
 
             <v-row>
               <v-col cols="4">
@@ -98,30 +132,40 @@
 import { ref, watch, computed } from "vue";
 import type { Product } from "../stores/store";
 
-// Props & Emit setup
 const props = defineProps<{
   product?: Product;
-  dialogVisible: boolean; // New prop to control dialog visibility
+  dialogVisible: boolean;
+  categories: string[]; // Pass categories as a prop
 }>();
 
 const emit = defineEmits<{
   (event: "form-submit", product: Product): void;
-  (event: "close-modal"): void; // Emit event to close the modal
+  (event: "close-modal"): void;
 }>();
 
-// Reactive References
 const dialog = ref(props.dialogVisible);
 
-// Initialize formProduct with an empty product if props.product is undefined
 const formProduct = ref<Product>({
   id: props.product?.id ?? 0,
+  category: props.product?.category ?? "",
   name: props.product?.name ?? "",
   price: props.product?.price ?? 0,
   description: props.product?.description ?? "",
   imageurl: props.product?.imageurl ?? "",
 });
 
-// Computed Properties
+const newCategory = ref<string>("");
+
+const categoryOptions = computed(() => {
+  return [...props.categories, "Other"];
+});
+
+const showNewCategoryInput = computed(() => {
+  return selectedCategory.value === "Other";
+});
+
+const selectedCategory = ref(props.product?.category ?? "");
+
 const dialogTitle = computed(() => {
   return formProduct.value.id === 0 ? "Add Product" : "Edit Product";
 });
@@ -130,20 +174,24 @@ const headingClass = computed(() => {
   return formProduct.value.id === 0 ? "headline-add" : "headline-edit";
 });
 
-// Watcher to update form data if props change
 watch(
   () => props.product,
   (newProduct) => {
     if (newProduct) {
       formProduct.value = { ...newProduct };
+      selectedCategory.value = newProduct.category;
+      newCategory.value = ""; // Reset new category input
     } else {
       formProduct.value = {
         id: 0,
+        category: "",
         name: "",
         price: 0,
         description: "",
         imageurl: "",
-      }; // Reset to default if no product is provided
+      };
+      selectedCategory.value = "";
+      newCategory.value = ""; // Reset new category input
     }
   },
   { immediate: true }
@@ -152,20 +200,22 @@ watch(
 watch(
   () => props.dialogVisible,
   (newValue) => {
-    dialog.value = newValue; // Sync dialog visibility with prop
+    dialog.value = newValue;
   }
 );
 
-// Methods
 function closeModal() {
   dialog.value = false;
-  emit("close-modal"); // Emit event to inform parent to close the dialog
+  emit("close-modal");
 }
 
 function submitForm() {
   if (validateForm()) {
-    // Ensure formProduct is a valid Product
-    const product: Product = { ...formProduct.value };
+    const category =
+      selectedCategory.value === "Other"
+        ? newCategory.value
+        : selectedCategory.value;
+    const product: Product = { ...formProduct.value, category };
     emit("form-submit", product);
     closeModal();
   }
@@ -174,6 +224,10 @@ function submitForm() {
 function validateForm(): boolean {
   if (!formProduct.value.name || formProduct.value.price <= 0) {
     alert("Please provide valid product details.");
+    return false;
+  }
+  if (!selectedCategory.value && !newCategory.value) {
+    alert("Please select or enter a category.");
     return false;
   }
   return true;

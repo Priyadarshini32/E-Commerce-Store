@@ -14,10 +14,21 @@
           hide-details
           class="search-bar"
         ></v-text-field>
+
+        <!-- Categories dropdown -->
+        <v-select
+          v-model="selectedCategory"
+          :items="categories"
+          label="Select Category"
+          class="categories-dropdown"
+          @change="filterByCategory"
+        ></v-select>
+
         <v-btn @click="goToCart" color="green" class="view-cart-btn">
           <v-icon left>mdi-cart</v-icon>
           View Cart
         </v-btn>
+
         <v-btn
           v-if="isAdmin"
           @click="openAddProductModal"
@@ -31,11 +42,15 @@
     <br />
     <div class="product-grid">
       <div
-        v-for="product in filteredProducts"
+        v-for="product in filteredAndSearchedProducts"
         :key="product.id"
         :class="['product-card', { 'admin-card': isAdmin }]"
       >
-        <v-img :src="product.imageurl || defaultImage" class="product-image" />
+        <v-img
+          :src="product.imageurl || defaultImage"
+          class="product-image"
+          @click="openImageZoom(product.imageurl || defaultImage)"
+        />
         <br />
         <div class="product-details">
           <h2 class="product-title">{{ product.name }}</h2>
@@ -68,6 +83,14 @@
       </div>
     </div>
 
+    <!-- Image Zoom Dialog -->
+    <v-dialog v-model="imageZoomDialog" max-width="800px">
+      <v-card>
+        <v-img :src="zoomedImageUrl" class="zoomed-image"></v-img>
+      </v-card>
+    </v-dialog>
+
+    <!-- Existing Dialogs for Deletion and Form Handling -->
     <v-dialog v-model="dialogDelete" max-width="400px">
       <v-card>
         <v-card-title class="headline">Confirm Deletion</v-card-title>
@@ -83,42 +106,17 @@
 
     <v-dialog v-model="dialogForm" max-width="600px">
       <v-card>
-        <!-- Remove or comment out the v-card-title -->
-        <!-- <v-card-title>
-        {{ formTitle }}
-      </v-card-title> -->
         <v-card-text>
           <ProductForm
             :product="selectedProduct || undefined"
             :dialogVisible="dialogForm"
+            :categories="categories"
             @form-submit="handleFormSubmit"
             @close-modal="closeForm"
           />
         </v-card-text>
       </v-card>
     </v-dialog>
-
-    <br />
-
-    <div class="pagination-controls">
-      <v-btn
-        v-if="currentPage > 1"
-        @click="goToPreviousPage"
-        icon
-        class="pagination-btn"
-      >
-        <v-icon>mdi-arrow-left</v-icon>
-      </v-btn>
-
-      <v-btn
-        v-if="hasMoreProducts"
-        @click="loadNextPage"
-        icon
-        class="pagination-btn"
-      >
-        <v-icon>mdi-arrow-right</v-icon>
-      </v-btn>
-    </div>
   </v-container>
 </template>
 
@@ -135,45 +133,42 @@ const productStore = useProductStore();
 const { products } = storeToRefs(productStore);
 
 const loading = ref<boolean>(true);
-const itemsPerPage = ref<number>(9); // Display 6 products per page
-const currentPage = ref<number>(1);
-const defaultImage = "/default.jpg"; // Use relative path for default image
+const defaultImage = "/default.jpg";
 const searchQuery = ref<string>("");
+const selectedCategory = ref<string | null>(null);
 
-// Check if the user is admin
 const isAdmin = computed<boolean>(() => {
   return sessionStorage.getItem("isAdmin") === "true";
 });
 
-// Modal states
 const dialogForm = ref<boolean>(false);
 const dialogDelete = ref<boolean>(false);
 const selectedProduct = ref<Product | null>(null);
-// const formTitle = computed(() =>
-//   selectedProduct.value ? "Update Product Details" : "Add New Product"
-// );
 
-const filteredProducts = computed<Product[]>(() => {
-  if (searchQuery.value) {
-    return products.value.filter((product) =>
-      product.name.toLowerCase().includes(searchQuery.value.toLowerCase())
+// Image Zoom Dialog State
+const imageZoomDialog = ref<boolean>(false);
+const zoomedImageUrl = ref<string>("");
+
+const categories = computed<string[]>(() => {
+  const allCategories = products.value.map((product) => product.category);
+  return Array.from(new Set(allCategories));
+});
+
+const filteredProducts = computed(() => {
+  return products.value.filter((product) =>
+    product.name.toLowerCase().includes(searchQuery.value.toLowerCase())
+  );
+});
+
+const filteredAndSearchedProducts = computed(() => {
+  if (selectedCategory.value) {
+    return filteredProducts.value.filter(
+      (product) => product.category === selectedCategory.value
     );
   }
-  return displayedProducts.value;
+  return filteredProducts.value;
 });
 
-const displayedProducts = computed<Product[]>(() => {
-  const start = (currentPage.value - 1) * itemsPerPage.value;
-  const end = start + itemsPerPage.value;
-  return products.value.slice(start, end);
-});
-
-const hasMoreProducts = computed<boolean>(() => {
-  const totalItems = products.value.length;
-  return currentPage.value * itemsPerPage.value < totalItems;
-});
-
-// Fetch data
 const fetchProductData = async () => {
   loading.value = true;
   try {
@@ -204,7 +199,6 @@ const goToCart = () => {
   router.push("/cart");
 };
 
-// Cart
 const addToCart = async (productId: number, quantity: number) => {
   try {
     await productStore.addToCart(productId, quantity);
@@ -215,7 +209,6 @@ const addToCart = async (productId: number, quantity: number) => {
   }
 };
 
-// Delete
 const confirmDelete = (id: number) => {
   selectedProduct.value = { id } as Product;
   dialogDelete.value = true;
@@ -238,23 +231,8 @@ const deleteItemConfirm = async () => {
   }
 };
 
-// Pagination controls
-const loadNextPage = () => {
-  if (hasMoreProducts.value) {
-    currentPage.value += 1;
-  }
-};
-
-const goToPreviousPage = () => {
-  if (currentPage.value > 1) {
-    currentPage.value -= 1;
-  }
-};
-
-// Handle form submission
 const handleFormSubmit = async (product: Product) => {
   if (selectedProduct.value && selectedProduct.value.id !== undefined) {
-    // Update product
     try {
       const response = await productStore.updateProduct(
         selectedProduct.value.id,
@@ -263,11 +241,7 @@ const handleFormSubmit = async (product: Product) => {
       if (response.status === 1) {
         alert("Product updated successfully");
       } else {
-        console.log("hi");
-
         const err = response.message;
-        console.log(err);
-
         alert(err.response.data.error[0].message);
       }
     } catch (error) {
@@ -275,17 +249,12 @@ const handleFormSubmit = async (product: Product) => {
       alert("Failed to update product. Please try again.");
     }
   } else {
-    // Add new product
     try {
       const response = await productStore.addProduct(product);
       if (response.status === 1) {
         alert("Product created successfully");
       } else {
-        console.log("hi");
-
         const err = response.message;
-        console.log(err);
-
         alert(err.response.data.error[0].message);
       }
     } catch (error) {
@@ -297,10 +266,17 @@ const handleFormSubmit = async (product: Product) => {
   await fetchProductData();
 };
 
-// Close form and redirect to home
 const closeForm = () => {
   dialogForm.value = false;
-  router.push("/home");
+};
+
+const openImageZoom = (imageUrl: string) => {
+  zoomedImageUrl.value = imageUrl;
+  imageZoomDialog.value = true;
+};
+
+const filterByCategory = () => {
+  // Filtering logic is handled by computed properties
 };
 </script>
 
@@ -343,6 +319,12 @@ const closeForm = () => {
 .search-bar {
   max-width: 300px;
   margin-right: 20px;
+}
+
+.categories-dropdown {
+  margin-right: 20px;
+  max-width: 200px;
+  margin-top: 2%;
 }
 
 .product-image {
@@ -409,6 +391,10 @@ const closeForm = () => {
 }
 
 .add-product-btn {
+  margin-left: 16px;
+}
+
+.categories-btn {
   margin-left: 16px;
 }
 

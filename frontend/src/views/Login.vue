@@ -50,6 +50,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useRouter } from "vue-router";
+import { useAuthStore } from "../stores/navstore";
 import axios from "axios";
 
 const url = import.meta.env.VITE_APP_URL;
@@ -57,6 +58,7 @@ const username = ref("");
 const password = ref("");
 const errorMessage = ref("");
 const router = useRouter();
+const authStore = useAuthStore();
 
 const handleLogin = async () => {
   try {
@@ -68,16 +70,9 @@ const handleLogin = async () => {
     if (response.status === 200) {
       const token = response.data;
 
-      // Check if the user is 'Priya' and password is 'Priya@32'
-      if (username.value === "Priya" && password.value === "Priya@32") {
-        sessionStorage.setItem("isAdmin", "true");
-      } else {
-        sessionStorage.setItem("isAdmin", "false");
-      }
+      authStore.login(token, username.value);
 
-      sessionStorage.setItem("authToken", token);
-      sessionStorage.setItem("loggedInUser", username.value);
-
+      // Navigate to the home page
       router.push("/home");
     } else {
       errorMessage.value = "Invalid username or password.";

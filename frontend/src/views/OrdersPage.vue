@@ -65,6 +65,7 @@ onMounted(() => {
   margin-bottom: 20px;
   border-collapse: collapse;
   font-size: 50px;
+  border: 1px solid #ccc; /* Added border to the table */
 }
 
 .table-header {
@@ -74,6 +75,7 @@ onMounted(() => {
   font-size: 16px;
   text-transform: uppercase;
   padding: 1px;
+  border-bottom: 2px solid #ccc; /* Added border to the header */
 }
 
 .header-cell {
@@ -83,11 +85,12 @@ onMounted(() => {
   background: linear-gradient(135deg, #8f8c8c, #dad8d8);
   color: #fff;
   font-weight: bold;
+  border-right: 1px solid #ccc; /* Added border between header cells */
 }
 
 .table-row {
   display: flex;
-  border-bottom: 1px solid #ccc;
+  border-bottom: 1px solid #ccc; /* Added border between rows */
 }
 
 .table-cell {
@@ -96,6 +99,12 @@ onMounted(() => {
   text-align: left;
   font-size: 17px;
   color: #333;
+  border-right: 1px solid #ccc; /* Added border between cells */
+}
+
+.table-cell:last-child,
+.header-cell:last-child {
+  border-right: none; /* Remove the border from the last cell */
 }
 
 .modal-overlay {
@@ -125,6 +134,7 @@ onMounted(() => {
   margin-bottom: 5px;
   position: relative;
   padding-left: 10px;
+  margin-left: 15px;
 }
 
 .btn {

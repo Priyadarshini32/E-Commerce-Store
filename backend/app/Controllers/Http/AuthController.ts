@@ -34,4 +34,24 @@ export default class AuthController {
       return response.unauthorized("Invalid Credentials");
     }
   }
+
+  public async profile({ auth, response }: HttpContextContract) {
+    try {
+      if (!(await auth.check())) {
+        return response.unauthorized("User not authenticated");
+      }
+
+      const user = auth.user;
+      return response.ok({
+        id: user?.id,
+        username: user?.username,
+        email: user?.email,
+      });
+    } catch (error) {
+      console.error("Profile retrieval error:", error);
+      return response
+        .status(500)
+        .json({ message: "Failed to retrieve profile", error: error.message });
+    }
+  }
 }

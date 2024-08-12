@@ -5,6 +5,9 @@ export default class Product extends BaseModel {
   public id: number;
 
   @column()
+  public category: string | null;
+
+  @column()
   public name: string;
 
   @column()

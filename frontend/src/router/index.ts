@@ -9,6 +9,7 @@ import Cart from "@/views/Cart.vue";
 import Checkout from "@/views/Checkout.vue";
 import Order from "@/views/Order.vue";
 import OrdersPage from "@/views/OrdersPage.vue";
+import Profile from "@/views/Profile.vue";
 
 // Define your routes
 const routes = [
@@ -59,6 +60,12 @@ const routes = [
     name: "Order",
     component: Order,
     props: true,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/profile",
+    name: "Profile",
+    component: Profile,
     meta: { requiresAuth: true },
   },
   {

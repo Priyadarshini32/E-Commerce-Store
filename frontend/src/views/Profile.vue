@@ -56,7 +56,7 @@ const router = useRouter();
 
 onMounted(async () => {
   try {
-    const token = sessionStorage.getItem("token");
+    const token = sessionStorage.getItem("authToken");
     console.log(token);
 
     if (!token) {

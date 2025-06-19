@@ -64,8 +64,11 @@ onMounted(() => {
   width: 100%;
   margin-bottom: 20px;
   border-collapse: collapse;
-  font-size: 50px;
-  border: 1px solid #ccc; /* Added border to the table */
+  font-size: 17px;
+  border: 1px solid #ccc;
+  max-height: 350px;
+  overflow-y: auto;
+  display: block;
 }
 
 .table-header {
